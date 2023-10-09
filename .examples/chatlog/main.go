@@ -1,0 +1,77 @@
+package main
+
+import (
+	"log"
+	"os"
+
+	g "github.com/b7c/goearth"
+)
+
+var ext = g.NewExt(g.ExtInfo{
+	Title:       "Go Earth",
+	Description: "example: chatlog",
+	Version:     "1.0",
+	Author:      "b7",
+})
+
+var entities = map[int]Entity{}
+var roomCache = map[g.Id]RoomData{}
+var currentRoomId g.Id
+var currentRoomData RoomData
+var info *log.Logger
+
+func init() {
+	flags := log.Ldate|log.Ltime
+	log.SetFlags(flags)
+	info = log.New(os.Stderr, "", flags)
+}
+
+func main() {
+	ext.Initialized(func(_ *g.InitArgs) { info.Printf("Extension initialized") })
+	ext.Connected(func(_ *g.ConnectArgs) { info.Printf("Game connection established") })
+	ext.Intercept("GetGuestRoomResult").In(handleRoomData)
+	ext.Intercept("OpenConnection").In(handleInitRoom)
+	ext.Intercept("Users").In(handleUsers)
+	ext.Intercept("Chat", "Shout", "Whisper").In(handleChat)
+	ext.Disconnected(func() { info.Printf("Game connection lost") })
+	ext.Run()
+}
+
+func handleRoomData(e *g.InterceptArgs) {
+	roomData := RoomData{}
+	e.Packet.Read(&roomData)		
+	roomCache[roomData.Id] = roomData
+	if currentRoomId == roomData.Id {
+		if currentRoomData.Name != roomData.Name {
+			info.Printf("Room name changed to %q", roomData.Name)	
+		}					
+		currentRoomData = roomData
+	}
+}
+
+func handleInitRoom(e *g.InterceptArgs) {
+	for k := range entities {
+		delete(entities, k)
+	}
+	e.Packet.Read(&currentRoomId)
+	if room, ok := roomCache[currentRoomId]; ok {
+		currentRoomData = room
+		info.Printf("Entered room %q by %s (id:%d)", room.Name, room.OwnerName, room.Id)
+	}
+}
+
+func handleUsers(e *g.InterceptArgs) {
+	ents := []Entity{}
+	e.Packet.Read(&ents)
+	for _, ent := range ents {
+		entities[ent.Index] = ent	
+	}
+}
+
+func handleChat(e *g.InterceptArgs) {
+	idx, msg := 0, ""
+	e.Packet.Read(&idx, &msg)
+	if ent, ok := entities[idx]; ok && ent.Type == USER {
+		log.Printf("%s: %s", ent.Name, msg)
+	}
+}
