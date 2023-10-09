@@ -66,6 +66,7 @@ type Intercept interface {
 	If(cond *func(*Packet) bool) Intercept
 	Block() Intercept
 	Timeout(duration time.Duration) Intercept
+	TimeoutMs(ms time.Duration) Intercept
 	TimeoutSec(sec time.Duration) Intercept
 	Await() <-chan *Packet
 	Wait() *Packet
@@ -152,6 +153,10 @@ func (i *intercept) Timeout(duration time.Duration) Intercept {
 		i.timeout.Reset(duration)
 	}
 	return i
+}
+
+func (i *intercept) TimeoutMs(ms time.Duration) Intercept {
+	return i.Timeout(ms * time.Millisecond)
 }
 
 func (i *intercept) TimeoutSec(sec time.Duration) Intercept {
