@@ -17,7 +17,7 @@ var args ExtArgs
 var flagsRegistered = false
 
 // Registers the port, cookie, and filename command-line arguments with the flag package.
-func RegisterFlags() *ExtArgs {
+func InitFlags() *ExtArgs {
 	if !flagsRegistered {
 		flag.IntVar(&args.Port, "p", 9092, "The port to connect to G-Earth on.")
 		flag.StringVar(&args.Cookie, "c", "", "The cookie provided by G-Earth.")
