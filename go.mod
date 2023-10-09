@@ -1,3 +1,3 @@
 module github.com/b7c/goearth
 
-go 1.18
+go 1.21

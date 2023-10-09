@@ -1,6 +1,6 @@
 module github.com/b7c/goearth/.examples/logger
 
-go 1.18
+go 1.21
 
 replace github.com/b7c/goearth => ../../
 
