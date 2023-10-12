@@ -464,6 +464,7 @@ func dispatchIntercept(handlers []InterceptHandler, index int, keep *int,
 		}
 	}()
 	handler := handlers[index]
+	intercept.Packet.Pos = 0
 	handler(intercept)
 	if intercept.dereg {
 		intercept.dereg = false
@@ -522,7 +523,6 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	keep := 0
 	handlers := ext.globalIntercept.handlers
 	for i := range ext.globalIntercept.handlers {
-		intercept.Packet.Pos = 0
 		dispatchIntercept(handlers, i, &keep, nil, intercept)
 	}
 	ext.globalIntercept.handlers = handlers[:keep]
@@ -531,7 +531,6 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		handlers := interceptors.handlers
 		keep := 0
 		for i := range handlers {
-			intercept.Packet.Pos = 0
 			dispatchIntercept(handlers, i, &keep, header, intercept)
 		}
 		interceptors.handlers = handlers[:keep]
