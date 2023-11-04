@@ -63,7 +63,7 @@ func (b *interceptBuilder) Out(handler InterceptHandler) {
 }
 
 type Intercept interface {
-	If(cond *func(*Packet) bool) Intercept
+	If(cond func(*Packet) bool) Intercept
 	Block() Intercept
 	Timeout(duration time.Duration) Intercept
 	TimeoutMs(ms time.Duration) Intercept
@@ -81,7 +81,7 @@ type intercept struct {
 	timeout  *time.Timer
 	bind     sync.Once
 	block    bool
-	cond     *func(*Packet) bool
+	cond     func(*Packet) bool
 	result   chan *Packet
 }
 
@@ -94,7 +94,7 @@ func (i *intercept) interceptHandler(e *InterceptArgs) {
 	default:
 	}
 
-	if cond := i.cond; cond != nil && !(*cond)(e.Packet) {
+	if cond := i.cond; cond != nil && !(cond)(e.Packet) {
 		return
 	}
 
@@ -138,7 +138,7 @@ func (e *Ext) Recv(messages ...string) Intercept {
 	return intercept
 }
 
-func (i *intercept) If(cond *func(*Packet) bool) Intercept {
+func (i *intercept) If(cond func(*Packet) bool) Intercept {
 	i.cond = cond
 	return i
 }
