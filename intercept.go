@@ -52,13 +52,13 @@ type interceptBuilder struct {
 
 func (b *interceptBuilder) In(handler InterceptHandler) {
 	for _, name := range b.Messages {
-		b.Ext.addInterceptIn(name, handler)
+		b.Ext.addPersistentIntercept(INCOMING, name, handler)
 	}
 }
 
 func (b *interceptBuilder) Out(handler InterceptHandler) {
 	for _, name := range b.Messages {
-		b.Ext.addInterceptOut(name, handler)
+		b.Ext.addPersistentIntercept(OUTGOING, name, handler)
 	}
 }
 
@@ -118,7 +118,7 @@ func (i *intercept) bindIntercept() {
 				dir = OUTGOING
 				message = message[4:]
 			}
-			i.ext.addIntercept(dir, message, i.interceptHandler)
+			i.ext.addTransientIntercept(dir, message, i.interceptHandler)
 		}
 	})
 }

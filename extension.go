@@ -205,20 +205,12 @@ func (ext *Ext) Intercept(messages ...string) InterceptBuilder {
 
 // Registers an event handler that is invoked when
 // a packet with the specified message name and direction is intercepted.
-func (ext *Ext) addIntercept(dir Direction, name string, handler InterceptHandler) {
-	ext.interceptIdentifier(Identifier{dir, name}, handler)
+func (ext *Ext) addPersistentIntercept(dir Direction, name string, handler InterceptHandler) {
+	ext.interceptIdentifier(Identifier{dir, name}, handler, false)
 }
 
-// Registers an event handler that is invoked when
-// an incoming packet with the specified message name is intercepted.
-func (ext *Ext) addInterceptIn(name string, handler InterceptHandler) {
-	ext.addIntercept(INCOMING, name, handler)
-}
-
-// Registers an event handler that is invoked when
-// an outgoing packet with the specified message name is intercepted.
-func (ext *Ext) addInterceptOut(name string, handler InterceptHandler) {
-	ext.addIntercept(OUTGOING, name, handler)
+func (ext *Ext) addTransientIntercept(dir Direction, name string, handler InterceptHandler) {
+	ext.interceptIdentifier(Identifier{dir, name}, handler, true)
 }
 
 // Registers an event handler that is invoked when the game connection is lost.
@@ -345,12 +337,14 @@ func (ext *Ext) Run() {
 	}
 }
 
-func (ext *Ext) interceptIdentifier(identifier Identifier, handler InterceptHandler) {
-	if ext.isPacketInfoAvailable {
+func (ext *Ext) interceptIdentifier(identifier Identifier, handler InterceptHandler, transient bool) {
+	if ext.isPacketInfoAvailable || transient {
 		h := ext.mustResolveIdentifier(identifier)
 		ext.registerIntercept(h.dir, h.value, handler)
 	}
-	ext.persistentIntercepts[identifier] = append(ext.persistentIntercepts[identifier], handler)
+	if !transient {
+		ext.persistentIntercepts[identifier] = append(ext.persistentIntercepts[identifier], handler)
+	}
 }
 
 func (ext *Ext) registerIntercept(dir Direction, value uint16, handler InterceptHandler) {
