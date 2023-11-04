@@ -52,6 +52,10 @@ func makePacket(client ClientType, header *Header, values ...any) *Packet {
 	return packet
 }
 
+func resetPos(e *InterceptArgs) {
+	e.Packet.Pos = 0
+}
+
 // Provides an API to create an extension for G-Earth.
 type Ext struct {
 	conn      net.Conn
@@ -68,14 +72,17 @@ type Ext struct {
 
 	// events
 
-	initialized     InitEvent
-	activated       VoidEvent
-	connected       ConnectEvent
-	disconnected    VoidEvent
-	globalIntercept InterceptEvent
-	interceptors    map[Direction]map[uint16]*InterceptEvent
+	initialized  InitEvent
+	activated    VoidEvent
+	connected    ConnectEvent
+	disconnected VoidEvent
 
-	interceptIdentifiers map[Identifier][]InterceptHandler
+	globalInterceptLock sync.Mutex
+	globalIntercept     InterceptEvent
+	interceptsLock      sync.Mutex
+	intercepts          map[Direction]map[uint16]*InterceptEvent
+
+	persistentIntercepts map[Identifier][]InterceptHandler
 }
 
 // Defines information about an extension.
@@ -139,14 +146,15 @@ func NewExt(info ExtInfo) *Ext {
 // Creates a new extension with the provided extension info, using the specified connection.
 func NewExtWithConn(conn net.Conn, info ExtInfo) *Ext {
 	return &Ext{
-		conn:    conn,
-		headers: NewHeaders(),
-		info:    info,
-		interceptors: map[Direction]map[uint16]*InterceptEvent{
+		conn:            conn,
+		headers:         NewHeaders(),
+		info:            info,
+		globalIntercept: InterceptEvent{setup: resetPos},
+		intercepts: map[Direction]map[uint16]*InterceptEvent{
 			INCOMING: {},
 			OUTGOING: {},
 		},
-		interceptIdentifiers: map[Identifier][]InterceptHandler{},
+		persistentIntercepts: map[Identifier][]InterceptHandler{},
 	}
 }
 
@@ -196,7 +204,7 @@ func (ext *Ext) Intercept(messages ...string) InterceptBuilder {
 }
 
 // Registers an event handler that is invoked when
-// an packet with the specified message name and direction is intercepted.
+// a packet with the specified message name and direction is intercepted.
 func (ext *Ext) addIntercept(dir Direction, name string, handler InterceptHandler) {
 	ext.interceptIdentifier(Identifier{dir, name}, handler)
 }
@@ -342,15 +350,16 @@ func (ext *Ext) interceptIdentifier(identifier Identifier, handler InterceptHand
 		h := ext.mustResolveIdentifier(identifier)
 		ext.registerIntercept(h.dir, h.value, handler)
 	}
-	ext.interceptIdentifiers[identifier] = append(ext.interceptIdentifiers[identifier], handler)
+	ext.persistentIntercepts[identifier] = append(ext.persistentIntercepts[identifier], handler)
 }
 
 func (ext *Ext) registerIntercept(dir Direction, value uint16, handler InterceptHandler) {
-	// TODO interceptor lock
-	event, exist := ext.interceptors[dir][value]
+	ext.interceptsLock.Lock()
+	defer ext.interceptsLock.Unlock()
+	event, exist := ext.intercepts[dir][value]
 	if !exist {
-		event = &InterceptEvent{}
-		ext.interceptors[dir][value] = event
+		event = &InterceptEvent{setup: resetPos}
+		ext.intercepts[dir][value] = event
 	}
 	event.Register(handler)
 }
@@ -386,9 +395,9 @@ func (ext *Ext) mustResolve(dir Direction, name string) *Header {
 }
 
 func (ext *Ext) flushInterceptors() {
-	for id := range ext.interceptIdentifiers {
+	for id := range ext.persistentIntercepts {
 		header := ext.mustResolveIdentifier(id)
-		for _, handler := range ext.interceptIdentifiers[id] {
+		for _, handler := range ext.persistentIntercepts[id] {
 			ext.registerIntercept(header.dir, header.value, handler)
 		}
 	}
@@ -449,7 +458,20 @@ func (ext *Ext) handleConnectionStart(p *Packet) {
 
 func (ext *Ext) handleConnectionEnd(p *Packet) {
 	ext.isConnected = false
+	ext.clearIntercepts()
 	ext.disconnected.Dispatch()
+}
+
+func (ext *Ext) clearIntercepts() {
+	ext.interceptsLock.Lock()
+	defer ext.interceptsLock.Unlock()
+	ext.globalInterceptLock.Lock()
+	defer ext.globalInterceptLock.Unlock()
+	ext.intercepts = map[Direction]map[uint16]*Event[InterceptArgs]{
+		INCOMING: {},
+		OUTGOING: {},
+	}
+	ext.globalIntercept.Clear()
 }
 
 func dispatchIntercept(handlers []InterceptHandler, index int, keep *int,
@@ -520,21 +542,8 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		Block:  blocked,
 	}
 
-	keep := 0
-	handlers := ext.globalIntercept.handlers
-	for i := range ext.globalIntercept.handlers {
-		dispatchIntercept(handlers, i, &keep, nil, intercept)
-	}
-	ext.globalIntercept.handlers = handlers[:keep]
-
-	if interceptors, exist := ext.interceptors[dir][headerValue]; exist {
-		handlers := interceptors.handlers
-		keep := 0
-		for i := range handlers {
-			dispatchIntercept(handlers, i, &keep, header, intercept)
-		}
-		interceptors.handlers = handlers[:keep]
-	}
+	ext.dispatchGlobalIntercepts(intercept)
+	ext.dispatchIntercepts(intercept)
 
 	// Update the original packet with modified values.
 	diff := pktModified.Length() - preLen
@@ -548,4 +557,28 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	p.WriteBytesAt(pktModified.Data, tabs[2]+8)
 	p.Data = p.Data[:newLen]
 	ext.sendRaw(p)
+}
+
+func (ext *Ext) dispatchGlobalIntercepts(args *InterceptArgs) {
+	ext.globalInterceptLock.Lock()
+	defer ext.globalInterceptLock.Unlock()
+	keep := 0
+	handlers := ext.globalIntercept.handlers
+	for i := range ext.globalIntercept.handlers {
+		dispatchIntercept(handlers, i, &keep, nil, args)
+	}
+	ext.globalIntercept.handlers = handlers[:keep]
+}
+
+func (ext *Ext) dispatchIntercepts(args *InterceptArgs) {
+	ext.interceptsLock.Lock()
+	defer ext.interceptsLock.Unlock()
+	if interceptors, exist := ext.intercepts[args.dir][args.Packet.Header.value]; exist {
+		handlers := interceptors.handlers
+		keep := 0
+		for i := range handlers {
+			dispatchIntercept(handlers, i, &keep, args.Packet.Header, args)
+		}
+		interceptors.handlers = handlers[:keep]
+	}
 }
