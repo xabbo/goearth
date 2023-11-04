@@ -9,7 +9,7 @@ const (
 	// Represents the Flash client.
 	FLASH ClientType = "FLASH"
 	// Represents the Unity client.
-	UNITY = "UNITY"
+	UNITY ClientType = "UNITY"
 )
 
 // Defines information about a game client.
