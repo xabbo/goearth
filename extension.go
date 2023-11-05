@@ -166,16 +166,6 @@ func (ext *Ext) NewPacket(dir Direction, message string) *Packet {
 	}
 }
 
-// Creates a new outgoing packet with the specified message name.
-func (ext *Ext) OutPacket(message string) *Packet {
-	return ext.NewPacket(OUTGOING, message)
-}
-
-// Creates a new incoming packet with the specified message name.
-func (ext *Ext) InPacket(message string) *Packet {
-	return ext.NewPacket(INCOMING, message)
-}
-
 // Registers an event handler that is invoked when the extension is initialized by G-Earth.
 func (ext *Ext) Initialized(handler InitHandler) {
 	ext.initialized.Register(handler)
@@ -377,6 +367,12 @@ func (ext *Ext) mustResolveIdentifier(identifier Identifier) *Header {
 }
 
 func (ext *Ext) mustResolve(dir Direction, name string) *Header {
+	switch dir {
+	case INCOMING:
+	case OUTGOING:
+	default:
+		panic("direction must be INCOMING or OUTGOING")
+	}
 	header := ext.headers.ByName(dir, name)
 	if header == nil {
 		dirName := "outgoing"

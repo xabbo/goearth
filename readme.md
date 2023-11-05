@@ -226,7 +226,7 @@ ext.SendToClient("Chat", 0, "hello, world", 0, 34, 0, 0)
 #### By packet
 
 ```go
-pkt := ext.InPacket("Chat")
+pkt := ext.NewPacket(g.INCOMING, "Chat")
 pkt.WriteInt(0)
 pkt.WriteString("hello, world")
 pkt.WriteInt(0)
