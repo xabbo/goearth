@@ -642,15 +642,7 @@ func (p *Packet) WriteAtPtr(pos *int, values ...any) *Packet {
 			case reflect.Struct:
 				n := r.NumField()
 				for i := 0; i < n; i++ {
-					f := r.Field(i)
-					switch f.Kind() {
-					case reflect.Bool:
-						p.WriteBoolAtPtr(f.Bool(), pos)
-					case reflect.String:
-						p.WriteStringAt(f.String(), pos)
-					default:
-						panic(fmt.Sprintf("Cannot write struct field of type %v", f.Type()))
-					}
+					p.WriteAtPtr(pos, r.Field(i).Interface())
 				}
 			default:
 				panic(fmt.Errorf("cannot write type %T to packet: (%+v)", v, v))
