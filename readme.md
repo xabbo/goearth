@@ -45,6 +45,12 @@ go run .
 
 You should see your extension appear in G-Earth's extension list.
 
+Import the `in`/`out` packages to access the respective incoming/outgoing message identifiers.
+```go
+import "github.com/b7c/goearth/in"
+import "github.com/b7c/goearth/out"
+```
+
 ### Events
 
 #### On extension initialized
@@ -88,14 +94,14 @@ ext.Disconnected(func() {
 ```go
 ext.InterceptAll(func (e *g.InterceptArgs) {
     log.Printf("Intercepted %s message %q\n",
-        e.Dir(), e.Packet.Header.Name())
+        e.Dir(), e.Packet.Header.Name)
 })
 ```
 
 #### By name
 
 ```go
-ext.Intercept("Chat", "Shout", "Whisper").In(func (e *g.InterceptArgs) {
+ext.Intercept(in.Chat, in.Shout, in.Whisper).With(func (e *g.InterceptArgs) {
     idx := e.Packet.ReadInt()
     msg := e.Packet.ReadString()
     log.Printf("Entity #%d said %q", idx, msg)
@@ -105,7 +111,7 @@ ext.Intercept("Chat", "Shout", "Whisper").In(func (e *g.InterceptArgs) {
 #### Blocking packets
 
 ```go
-ext.Intercept("MoveAvatar").Out(func (e *g.InterceptArgs) {
+ext.Intercept(out.MoveAvatar).With(func (e *g.InterceptArgs) {
     // prevent movement
     e.Block = true
 })
@@ -114,7 +120,7 @@ ext.Intercept("MoveAvatar").Out(func (e *g.InterceptArgs) {
 #### Modifying packets
 
 ```go
-ext.Intercept("Chat", "Shout").In(func(e *g.InterceptArgs) {
+ext.Intercept(in.Chat, in.Shout).With(func(e *g.InterceptArgs) {
     // make everyone's chat messages uppercase
     e.Packet.ModifyStringAt(strings.ToUpper, 4)
 })
@@ -216,9 +222,9 @@ pkt.Write(myStruct)
 
 ```go
 // to server
-ext.Send("Chat", "hello, world", 0, -1)
+ext.Send(out.Chat, "hello, world", 0, -1)
 // to client
-ext.SendToClient("Chat", 0, "hello, world", 0, 34, 0, 0)
+ext.Send(in.Chat, 0, "hello, world", 0, 34, 0, 0)
 // take care when sending packets to the client
 // as badly formed packets will crash the game client
 ```
@@ -226,22 +232,22 @@ ext.SendToClient("Chat", 0, "hello, world", 0, 34, 0, 0)
 #### By packet
 
 ```go
-pkt := ext.NewPacket(g.INCOMING, "Chat")
+pkt := ext.NewPacket(in.Chat)
 pkt.WriteInt(0)
 pkt.WriteString("hello, world")
 pkt.WriteInt(0)
 pkt.WriteInt(34)
 pkt.WriteInt(0)
 pkt.WriteInt(0)
-ext.SendToClientP(pkt)
+ext.SendPacket(pkt)
 ```
 
 ### Receiving packets
 
 ```go
 log.Println("Retrieving user info...")
-ext.Send("InfoRetrieve")
-if pkt := ext.Recv("UserObject").Wait(); pkt != nil {
+ext.Send(out.InfoRetrieve)
+if pkt := ext.Recv(in.UserObject).Wait(); pkt != nil {
     id, name := pkt.ReadInt(), pkt.ReadString()
     log.Printf("Got user info (id: %d, name: %q)", id, name)
 } else {
@@ -249,7 +255,8 @@ if pkt := ext.Recv("UserObject").Wait(); pkt != nil {
 }
 ```
 
-Note that calling `Wait()` from an event handler would cause the extension to hang as event handlers are invoked from the main packet processing loop. Launch a goroutine if you need to do any inline receiving of packets, for example:
+Note that calling `Wait()` from an event handler would cause the extension to hang as event handlers are invoked from the main packet processing loop.\
+Launch a goroutine if you need to do any inline receiving of packets, for example:
 
 ```go
 ext.Activated(func() {
