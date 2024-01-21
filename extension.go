@@ -1,6 +1,7 @@
 package goearth
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -8,6 +9,9 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 // maximum Habbo packet sizes
@@ -38,14 +42,14 @@ const (
 	gOutExtensionConsoleLog   = 98
 )
 
-func zeroOneChr(condition bool) byte {
-	if condition {
+func zeroOneChr(b bool) byte {
+	if b {
 		return '1'
 	}
 	return '0'
 }
 
-func makePacket(client ClientType, header *Header, values ...any) *Packet {
+func makePacket(client ClientType, header *NamedHeader, values ...any) *Packet {
 	packet := NewPacket(header)
 	packet.Client = client
 	packet.Write(values...)
@@ -77,12 +81,11 @@ type Ext struct {
 	connected    ConnectEvent
 	disconnected VoidEvent
 
-	globalInterceptLock sync.Mutex
-	globalIntercept     InterceptEvent
-	interceptsLock      sync.Mutex
-	intercepts          map[Direction]map[uint16]*InterceptEvent
-
-	persistentIntercepts map[Identifier][]InterceptHandler
+	globalInterceptLock  sync.Mutex
+	globalIntercept      InterceptEvent
+	interceptsLock       sync.Mutex
+	intercepts           map[Header][]*interceptGroup
+	persistentIntercepts map[*interceptGroup]struct{}
 }
 
 // Defines information about an extension.
@@ -146,24 +149,39 @@ func NewExt(info ExtInfo) *Ext {
 // Creates a new extension with the provided extension info, using the specified connection.
 func NewExtWithConn(conn net.Conn, info ExtInfo) *Ext {
 	return &Ext{
-		conn:            conn,
-		headers:         NewHeaders(),
-		info:            info,
-		globalIntercept: InterceptEvent{setup: resetPos},
-		intercepts: map[Direction]map[uint16]*InterceptEvent{
-			INCOMING: {},
-			OUTGOING: {},
-		},
-		persistentIntercepts: map[Identifier][]InterceptHandler{},
+		conn:                 conn,
+		headers:              NewHeaders(),
+		info:                 info,
+		globalIntercept:      InterceptEvent{setup: resetPos},
+		persistentIntercepts: map[*interceptGroup]struct{}{},
+		intercepts:           map[Header][]*interceptGroup{},
 	}
 }
 
-// Creates a new packet with the specified direction and message name.
-func (ext *Ext) NewPacket(dir Direction, message string) *Packet {
-	return &Packet{
-		Client: ext.client.Type,
-		Header: ext.mustResolve(dir, message),
+func (ext *Ext) Connect(port int) error {
+	if ext.conn != nil {
+		return fmt.Errorf("the extension is already associated with a connection")
 	}
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	ext.conn = conn
+	return err
+}
+
+func (ext *Ext) MustConnect(port int) {
+	err := ext.Connect(port)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Creates a new packet with the specified message identifier and writes the specified values.
+func (ext *Ext) NewPacket(identifier Identifier, values ...any) *Packet {
+	packet := &Packet{
+		Client: ext.client.Type,
+		Header: ext.mustResolveIdentifier(identifier),
+	}
+	packet.Write(values...)
+	return packet
 }
 
 // Registers an event handler that is invoked when the extension is initialized by G-Earth.
@@ -186,21 +204,17 @@ func (ext *Ext) InterceptAll(handler InterceptHandler) {
 	ext.globalIntercept.Register(handler)
 }
 
-func (ext *Ext) Intercept(messages ...string) InterceptBuilder {
-	return &interceptBuilder{
-		Ext:      ext,
-		Messages: messages,
+// Configures a new intercept builder with the specified identifiers.
+func (ext *Ext) Intercept(identifiers ...Identifier) InterceptBuilder {
+	set := make(map[Identifier]struct{})
+	for _, identifier := range identifiers {
+		set[identifier] = struct{}{}
 	}
-}
 
-// Registers an event handler that is invoked when
-// a packet with the specified message name and direction is intercepted.
-func (ext *Ext) addPersistentIntercept(dir Direction, name string, handler InterceptHandler) {
-	ext.interceptIdentifier(Identifier{dir, name}, handler, false)
-}
-
-func (ext *Ext) addTransientIntercept(dir Direction, name string, handler InterceptHandler) {
-	ext.interceptIdentifier(Identifier{dir, name}, handler, true)
+	return &interceptBuilder{
+		ext:         ext,
+		identifiers: set,
+	}
 }
 
 // Registers an event handler that is invoked when the game connection is lost.
@@ -208,50 +222,37 @@ func (ext *Ext) Disconnected(handler VoidHandler) {
 	ext.disconnected.Register(handler)
 }
 
-// Sends a packet with the specified message name and values to the server.
-func (ext *Ext) Send(name string, values ...any) {
-	header := ext.mustResolve(OUTGOING, name)
+// Sends a packet with the specified message identifier and values to the server or client, based on the identifier direction.
+func (ext *Ext) Send(identifier Identifier, values ...any) {
+	header := ext.mustResolveIdentifier(identifier)
 	packet := makePacket(ext.client.Type, header, values...)
 	ext.SendP(packet)
 }
 
-// Sends the specified packet to the server.
+// Sends the specified packet to the server or client, based on the header direction.
 func (ext *Ext) SendP(packet *Packet) {
-	if packet.Header.dir != OUTGOING {
-		panic(fmt.Errorf("cannot send incoming message to server"))
+	switch packet.Header.Dir {
+	case In, Out:
+	default:
+		panic(fmt.Errorf("no direction specified on packet header: %+v", packet.Header))
 	}
 	ext.sendRaw(wrapPacket(packet))
 }
 
-// Sends a packet with the specified message name and values to the client.
-func (ext *Ext) SendToClient(name string, values ...any) {
-	header := ext.mustResolve(INCOMING, name)
-	packet := makePacket(ext.client.Type, header, values...)
-	ext.SendToClientP(packet)
-}
-
-// Sends the specified packet to the client.
-func (ext *Ext) SendToClientP(packet *Packet) {
-	if packet.Header.dir != INCOMING {
-		panic(fmt.Errorf("cannot send outgoing message to client"))
+// Configures a new inline interceptor targeting the specified message identifiers.
+func (e *Ext) Recv(identifiers ...Identifier) InlineInterceptor {
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan *Packet, 1)
+	context.AfterFunc(ctx, func() { close(result) })
+	intercept := &inlineInterceptor{
+		ext:         e,
+		identifiers: identifiers,
+		result:      result,
+		timeout:     time.AfterFunc(time.Minute, cancel),
+		ctx:         ctx,
+		cancel:      cancel,
 	}
-	ext.sendRaw(wrapPacket(packet))
-}
-
-func (ext *Ext) Connect(port int) error {
-	if ext.conn != nil {
-		return fmt.Errorf("the extension is already associated with a connection")
-	}
-	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	ext.conn = conn
-	return err
-}
-
-func (ext *Ext) MustConnect(port int) {
-	err := ext.Connect(port)
-	if err != nil {
-		panic(err)
-	}
+	return intercept
 }
 
 // Runs the extension processing loop.
@@ -310,7 +311,7 @@ func (ext *Ext) Run() {
 		}
 		hdr := outHeader(binary.BigEndian.Uint16(buf[0:2]))
 		pkt := Packet{Header: hdr, Data: buf[2:packetLength]}
-		switch pkt.Header.value {
+		switch pkt.Header.Value {
 		case gInInfoRequest:
 			ext.handleInfoRequest(&pkt)
 		case gInInit:
@@ -327,76 +328,71 @@ func (ext *Ext) Run() {
 	}
 }
 
-func (ext *Ext) interceptIdentifier(identifier Identifier, handler InterceptHandler, transient bool) {
+func (ext *Ext) registerInterceptGroup(group *interceptGroup, transient bool, sync bool) {
+	if sync {
+		ext.interceptsLock.Lock()
+		defer ext.interceptsLock.Unlock()
+	}
 	if ext.isPacketInfoAvailable || transient {
-		h := ext.mustResolveIdentifier(identifier)
-		ext.registerIntercept(h.dir, h.value, handler)
+		// resolve all identifiers
+		headers := map[Identifier]Header{}
+		for identifier := range group.identifiers {
+			headers[identifier] = ext.mustResolveIdentifier(identifier).Header
+		}
+		for _, header := range headers {
+			ext.intercepts[header] = append(ext.intercepts[header], group)
+		}
 	}
 	if !transient {
-		ext.persistentIntercepts[identifier] = append(ext.persistentIntercepts[identifier], handler)
+		ext.persistentIntercepts[group] = struct{}{}
 	}
-}
-
-func (ext *Ext) registerIntercept(dir Direction, value uint16, handler InterceptHandler) {
-	ext.interceptsLock.Lock()
-	defer ext.interceptsLock.Unlock()
-	event, exist := ext.intercepts[dir][value]
-	if !exist {
-		event = &InterceptEvent{setup: resetPos}
-		ext.intercepts[dir][value] = event
-	}
-	event.Register(handler)
 }
 
 func wrapPacket(packet *Packet) *Packet {
 	pkt := NewPacket(outHeader(gOutSendMessage))
-	if packet.Header.Dir() == OUTGOING {
+	if packet.Header.Dir == Out {
 		pkt.WriteByte(1)
 	} else {
 		pkt.WriteByte(0)
 	}
 	pkt.WriteInt(6 + packet.Length())
 	pkt.WriteInt(2 + packet.Length())
-	pkt.WriteShort(int16(packet.Header.Value()))
+	pkt.WriteShort(int16(packet.Header.Value))
 	pkt.WriteBytes(packet.Data)
 	return pkt
 }
 
-func (ext *Ext) mustResolveIdentifier(identifier Identifier) *Header {
+func (ext *Ext) mustResolveIdentifier(identifier Identifier) *NamedHeader {
 	return ext.mustResolve(identifier.Dir, identifier.Name)
 }
 
-func (ext *Ext) mustResolve(dir Direction, name string) *Header {
+func (ext *Ext) mustResolve(dir Direction, name string) *NamedHeader {
 	switch dir {
-	case INCOMING:
-	case OUTGOING:
+	case In, Out:
 	default:
-		panic("direction must be INCOMING or OUTGOING")
+		panic("direction must be In or Out")
 	}
 	header := ext.headers.ByName(dir, name)
 	if header == nil {
-		dirName := "outgoing"
-		if dir == INCOMING {
-			dirName = "incoming"
-		}
-		panic(fmt.Errorf("failed to resolve %s header: %q", dirName, name))
+		panic(fmt.Errorf("failed to resolve %s header: %q", dir.String(), name))
 	}
 	return header
 }
 
+// Acquires the interceptor lock, then registers persistent intercepts
 func (ext *Ext) flushInterceptors() {
-	for id := range ext.persistentIntercepts {
-		header := ext.mustResolveIdentifier(id)
-		for _, handler := range ext.persistentIntercepts[id] {
-			ext.registerIntercept(header.dir, header.value, handler)
-		}
+	ext.interceptsLock.Lock()
+	defer ext.interceptsLock.Unlock()
+
+	for intercept := range ext.persistentIntercepts {
+		ext.registerInterceptGroup(intercept, true, false)
 	}
 }
 
 func (ext *Ext) sendRaw(p *Packet) {
 	buf := [6]byte{}
 	binary.BigEndian.PutUint32(buf[0:], uint32(2+p.Length()))
-	binary.BigEndian.PutUint16(buf[4:], p.Header.Value())
+	binary.BigEndian.PutUint16(buf[4:], p.Header.Value)
 	ext.writeLock.Lock()
 	defer ext.writeLock.Unlock()
 	ext.conn.Write(buf[:])
@@ -430,9 +426,9 @@ func (ext *Ext) handleConnectionStart(p *Packet) {
 	for _, msg := range args.Messages {
 		var dir Direction
 		if msg.Outgoing {
-			dir = OUTGOING
+			dir = Out
 		} else {
-			dir = INCOMING
+			dir = In
 		}
 		ext.headers.Add(NewHeader(dir, uint16(msg.Id), msg.Name))
 	}
@@ -443,6 +439,7 @@ func (ext *Ext) handleConnectionStart(p *Packet) {
 	ext.remotePort = args.Port
 	ext.client = args.Client
 	ext.flushInterceptors()
+
 	ext.connected.Dispatch(&args)
 }
 
@@ -455,17 +452,13 @@ func (ext *Ext) handleConnectionEnd(p *Packet) {
 func (ext *Ext) clearIntercepts() {
 	ext.interceptsLock.Lock()
 	defer ext.interceptsLock.Unlock()
-	ext.globalInterceptLock.Lock()
-	defer ext.globalInterceptLock.Unlock()
-	ext.intercepts = map[Direction]map[uint16]*Event[InterceptArgs]{
-		INCOMING: {},
-		OUTGOING: {},
+	for msg := range ext.intercepts {
+		delete(ext.intercepts, msg)
 	}
-	ext.globalIntercept.Clear()
 }
 
 func dispatchIntercept(handlers []InterceptHandler, index int, keep *int,
-	header *Header, intercept *InterceptArgs) {
+	header *NamedHeader, intercept *InterceptArgs) {
 	defer func() {
 		if err := recover(); err != nil {
 			if header == nil {
@@ -508,14 +501,14 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	packetData := p.Data[tabs[2]+8:]
 	preLen := len(packetData)
 
-	dir := INCOMING
+	dir := In
 	if outgoing {
-		dir = OUTGOING
+		dir = Out
 	}
 
 	header := ext.headers.ByValue(dir, headerValue)
 	if header == nil {
-		header = &Header{dir, headerValue, "?"}
+		header = &NamedHeader{Header{dir, headerValue}, "?"}
 	}
 
 	pktModified := &Packet{
@@ -528,8 +521,8 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		ext:    ext,
 		dir:    dir,
 		seq:    seq,
+		block:  blocked,
 		Packet: pktModified,
-		Block:  blocked,
 	}
 
 	ext.dispatchGlobalIntercepts(intercept)
@@ -538,12 +531,12 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	// Update the original packet with modified values.
 	diff := pktModified.Length() - preLen
 	newLen := p.Length() + diff
-	p.Header.value = gOutManipulatedPacket
+	p.Header.Value = gOutManipulatedPacket
 	p.WriteIntAt(newLen-4, 0)
-	p.WriteByteAt(zeroOneChr(intercept.Block), 4)
+	p.WriteByteAt(zeroOneChr(intercept.block), 4)
 	p.WriteByteAt(zeroOneChr(modified), tabs[2]+1)
 	p.WriteIntAt(2+pktModified.Length(), tabs[2]+2)
-	p.WriteShortAt(int16(pktModified.Header.value), tabs[2]+6)
+	p.WriteShortAt(int16(pktModified.Header.Value), tabs[2]+6)
 	p.WriteBytesAt(pktModified.Data, tabs[2]+8)
 	p.Data = p.Data[:newLen]
 	ext.sendRaw(p)
@@ -552,6 +545,7 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 func (ext *Ext) dispatchGlobalIntercepts(args *InterceptArgs) {
 	ext.globalInterceptLock.Lock()
 	defer ext.globalInterceptLock.Unlock()
+
 	keep := 0
 	handlers := ext.globalIntercept.handlers
 	for i := range ext.globalIntercept.handlers {
@@ -560,15 +554,77 @@ func (ext *Ext) dispatchGlobalIntercepts(args *InterceptArgs) {
 	ext.globalIntercept.handlers = handlers[:keep]
 }
 
-func (ext *Ext) dispatchIntercepts(args *InterceptArgs) {
+func (ext *Ext) dispatchInterceptGroup(intercept *interceptGroup, args *InterceptArgs) {
+	if intercept.dereg {
+		return
+	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			panic(fmt.Errorf("error in intercept for %s %q: %s",
+				args.Packet.Header.Dir.String(), args.Packet.Header.Name, err))
+		}
+	}()
+
+	args.Packet.Pos = 0
+	intercept.handler(args)
+}
+
+func (ext *Ext) snapshotIntercepts(header Header) (snapshot []*interceptGroup, exists bool) {
 	ext.interceptsLock.Lock()
 	defer ext.interceptsLock.Unlock()
-	if interceptors, exist := ext.intercepts[args.dir][args.Packet.Header.value]; exist {
-		handlers := interceptors.handlers
-		keep := 0
-		for i := range handlers {
-			dispatchIntercept(handlers, i, &keep, args.Packet.Header, args)
+
+	src, exists := ext.intercepts[header]
+	if exists {
+		snapshot = make([]*interceptGroup, len(src))
+		copy(snapshot, src)
+	}
+	return
+}
+
+func (ext *Ext) dispatchIntercepts(args *InterceptArgs) {
+	removals := []*interceptGroup{}
+
+	header := args.Packet.Header.Header
+	if intercepts, exist := ext.snapshotIntercepts(header); exist {
+		for _, intercept := range intercepts {
+			ext.dispatchInterceptGroup(intercept, args)
+			if args.dereg {
+				intercept.dereg = true
+				args.dereg = false
+			}
+			if intercept.dereg {
+				removals = append(removals, intercept)
+			}
 		}
-		interceptors.handlers = handlers[:keep]
+	}
+
+	if len(removals) > 0 {
+		ext.removeIntercepts(removals...)
+	}
+}
+
+func (ext *Ext) removeIntercepts(intercepts ...*interceptGroup) {
+	ext.interceptsLock.Lock()
+	defer ext.interceptsLock.Unlock()
+
+	for _, intercept := range intercepts {
+		intercept.dereg = true
+		_, exist := ext.persistentIntercepts[intercept]
+		if !exist {
+			continue
+		}
+		delete(ext.persistentIntercepts, intercept)
+		for identifier := range intercept.identifiers {
+			header := ext.headers.Get(identifier)
+			if header == nil {
+				continue
+			}
+			intercepts := ext.intercepts[header.Header]
+			i := slices.Index(intercepts, intercept)
+			if i != -1 {
+				ext.intercepts[header.Header] = slices.Delete(intercepts, i, i+1)
+			}
+		}
 	}
 }

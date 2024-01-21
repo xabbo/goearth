@@ -2,20 +2,21 @@ package goearth
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/exp/maps"
 )
 
+/* Intercept args */
+
 type InterceptArgs struct {
-	ext   *Ext
-	dir   Direction
-	seq   int
-	dereg bool
-	// The intercepted packet.
-	Packet *Packet
-	// Whether to block the intercepted message.
-	Block bool
+	ext    *Ext
+	dir    Direction
+	seq    int
+	dereg  bool
+	block  bool
+	Packet *Packet // The intercepted packet.
 }
 
 // Gets the extension that intercepted this message.
@@ -33,59 +34,120 @@ func (args *InterceptArgs) Sequence() int {
 	return args.seq
 }
 
+// Blocks the intercepted packet.
+func (args *InterceptArgs) Block() {
+	args.block = true
+}
+
 // Deregisters the current intercept handler.
 func (args *InterceptArgs) Deregister() {
 	args.dereg = true
 }
 
+/* Intercept builder */
+
 type InterceptBuilder interface {
-	// Registers the intercept handler for the defined incoming messages.
-	In(handler InterceptHandler)
-	// Registers the intercept handler for the defined outgoing messages.
-	Out(handler InterceptHandler)
+	// Applies the specified message identifiers.
+	Identifiers(identifiers ...Identifier) InterceptBuilder
+	// Applies the specified incoming/outgoing messages.
+	Both(identifiers ...string) InterceptBuilder
+	// Flags the intercept as transient.
+	Transient() InterceptBuilder
+	// Registers the intercept handler and returns a reference.
+	With(handler InterceptHandler) InterceptRef
 }
 
 type interceptBuilder struct {
-	Ext      *Ext
-	Messages []string
+	ext         *Ext
+	transient   bool
+	identifiers map[Identifier]struct{}
 }
 
-func (b *interceptBuilder) In(handler InterceptHandler) {
-	for _, name := range b.Messages {
-		b.Ext.addPersistentIntercept(INCOMING, name, handler)
+func (b interceptBuilder) In(identifiers ...string) InterceptBuilder {
+	for _, name := range identifiers {
+		b.identifiers[Identifier{In, name}] = struct{}{}
 	}
+	return b
 }
 
-func (b *interceptBuilder) Out(handler InterceptHandler) {
-	for _, name := range b.Messages {
-		b.Ext.addPersistentIntercept(OUTGOING, name, handler)
+func (b interceptBuilder) Out(identifiers ...string) InterceptBuilder {
+	for _, name := range identifiers {
+		b.identifiers[Identifier{Out, name}] = struct{}{}
 	}
+	return b
 }
 
-type Intercept interface {
-	If(cond func(*Packet) bool) Intercept
-	Block() Intercept
-	Timeout(duration time.Duration) Intercept
-	TimeoutMs(ms time.Duration) Intercept
-	TimeoutSec(sec time.Duration) Intercept
+func (b interceptBuilder) Both(identifiers ...string) InterceptBuilder {
+	incoming := MakeIdentifiers(In, identifiers...)
+	outgoing := MakeIdentifiers(Out, identifiers...)
+	return b.Identifiers(incoming...).Identifiers(outgoing...)
+}
+
+func (b interceptBuilder) Identifiers(identifiers ...Identifier) InterceptBuilder {
+	for _, identifier := range identifiers {
+		b.identifiers[identifier] = struct{}{}
+	}
+	return b
+}
+
+func (b interceptBuilder) Transient() InterceptBuilder {
+	b.transient = true
+	return b
+}
+
+func (b interceptBuilder) With(handler InterceptHandler) InterceptRef {
+	identifiers := make(map[Identifier]struct{}, len(b.identifiers))
+	maps.Copy(identifiers, b.identifiers)
+
+	grp := &interceptGroup{
+		ext:         b.ext,
+		identifiers: identifiers,
+		handler:     handler,
+	}
+
+	b.ext.registerInterceptGroup(grp, b.transient, true)
+
+	return grp
+}
+
+/* Inline interceptor */
+
+type InlineInterceptor interface {
+	// Configures the intercept condition.
+	If(condition func(p *Packet) bool) InlineInterceptor
+	// Configures the interceptor to block the intercepted packet.
+	Block() InlineInterceptor
+	// Configures the timeout duration of the interceptor.
+	Timeout(duration time.Duration) InlineInterceptor
+	// Configures the timeout duration of the interceptor.
+	TimeoutMs(ms time.Duration) InlineInterceptor
+	// Configures the timeout duration of the interceptor.
+	TimeoutSec(sec time.Duration) InlineInterceptor
+	// Returns a channel that will signal the intercepted packet.
+	// Returns nil if the interceptor times out or is canceled.
 	Await() <-chan *Packet
+	// Waits for the packet to be intercepted and then returns it.
+	// Returns nil if the interceptor times out or is canceled.
 	Wait() *Packet
+	// Cancels the interceptor.
 	Cancel()
 }
 
-type intercept struct {
-	ext      *Ext
-	messages []string
-	ctx      context.Context
-	cancel   context.CancelFunc
-	timeout  *time.Timer
-	bind     sync.Once
-	block    bool
-	cond     func(*Packet) bool
-	result   chan *Packet
+type inlineInterceptor struct {
+	ext         *Ext
+	identifiers []Identifier
+	ctx         context.Context
+	cancel      context.CancelFunc
+	timeout     *time.Timer
+	bindOnce    sync.Once
+	block       bool
+	cond        func(*Packet) bool
+	result      chan *Packet
+	ref         InterceptRef
 }
 
-func (i *intercept) interceptHandler(e *InterceptArgs) {
+// Handles the intercept logic for an inline interceptor.
+func (i *inlineInterceptor) interceptHandler(e *InterceptArgs) {
 	select {
 	case <-i.ctx.Done():
 		// Timed out.
@@ -94,7 +156,7 @@ func (i *intercept) interceptHandler(e *InterceptArgs) {
 	default:
 	}
 
-	if cond := i.cond; cond != nil && !(cond)(e.Packet) {
+	if cond := i.cond; cond != nil && !cond(e.Packet) {
 		return
 	}
 
@@ -104,75 +166,75 @@ func (i *intercept) interceptHandler(e *InterceptArgs) {
 		// Timed out.
 	case i.result <- e.Packet.Copy():
 		if i.block {
-			e.Block = true
+			e.Block()
 		}
 		i.cancel()
 	}
 }
 
-func (i *intercept) bindIntercept() {
-	i.bind.Do(func() {
-		for _, message := range i.messages {
-			dir := INCOMING
-			if strings.HasPrefix(message, "out:") {
-				dir = OUTGOING
-				message = message[4:]
-			}
-			i.ext.addTransientIntercept(dir, message, i.interceptHandler)
-		}
+func (i *inlineInterceptor) bindIntercept() {
+	i.bindOnce.Do(func() {
+		i.ref = i.ext.Intercept().Identifiers(i.identifiers...).Transient().With(i.interceptHandler)
 	})
 }
 
-func (e *Ext) Recv(messages ...string) Intercept {
-	ctx, cancel := context.WithCancel(context.Background())
-	result := make(chan *Packet, 1)
-	context.AfterFunc(ctx, func() { close(result) })
-	intercept := &intercept{
-		ext:      e,
-		messages: messages,
-		result:   result,
-		timeout:  time.AfterFunc(time.Minute, cancel),
-		ctx:      ctx,
-		cancel:   cancel,
-	}
-	return intercept
-}
-
-func (i *intercept) If(cond func(*Packet) bool) Intercept {
-	i.cond = cond
+func (i *inlineInterceptor) If(condition func(p *Packet) bool) InlineInterceptor {
+	i.cond = condition
 	return i
 }
 
-func (i *intercept) Block() Intercept {
+func (i *inlineInterceptor) Block() InlineInterceptor {
 	i.block = true
 	return i
 }
 
-func (i *intercept) Timeout(duration time.Duration) Intercept {
+func (i *inlineInterceptor) Timeout(duration time.Duration) InlineInterceptor {
 	if i.timeout.Stop() {
 		i.timeout.Reset(duration)
 	}
 	return i
 }
 
-func (i *intercept) TimeoutMs(ms time.Duration) Intercept {
+func (i *inlineInterceptor) TimeoutMs(ms time.Duration) InlineInterceptor {
 	return i.Timeout(ms * time.Millisecond)
 }
 
-func (i *intercept) TimeoutSec(sec time.Duration) Intercept {
+func (i *inlineInterceptor) TimeoutSec(sec time.Duration) InlineInterceptor {
 	return i.Timeout(sec * time.Second)
 }
 
-func (i *intercept) Await() <-chan *Packet {
+func (i *inlineInterceptor) Await() <-chan *Packet {
 	i.bindIntercept()
 	return i.result
 }
 
-func (i *intercept) Wait() *Packet {
+func (i *inlineInterceptor) Wait() *Packet {
 	i.bindIntercept()
 	return <-i.result
 }
 
-func (i *intercept) Cancel() {
+func (i *inlineInterceptor) Cancel() {
 	i.cancel()
+}
+
+/* Intercept reference */
+
+// Represents a reference to an intercept handler.
+type InterceptRef interface {
+	// Deregisters the intercept handler.
+	Deregister()
+}
+
+/* Intercept group */
+
+// Represents an intercept handler with a group of identifiers.
+type interceptGroup struct {
+	ext         *Ext
+	identifiers map[Identifier]struct{}
+	handler     InterceptHandler
+	dereg       bool
+}
+
+func (intercept *interceptGroup) Deregister() {
+	intercept.ext.removeIntercepts(intercept)
 }

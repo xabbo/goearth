@@ -12,7 +12,7 @@ import (
 var tParsable = reflect.TypeOf((*Parsable)(nil)).Elem()
 
 type Packet struct {
-	Header *Header
+	Header *NamedHeader
 	Data   []byte
 	Pos    int
 	Client ClientType
@@ -83,7 +83,7 @@ func (p *Packet) assertCanRead(pos int, n int) {
 	}
 }
 
-func NewPacket(hdr *Header) *Packet {
+func NewPacket(hdr *NamedHeader) *Packet {
 	return &Packet{
 		Header: hdr,
 		Data:   make([]byte, 0, 8),

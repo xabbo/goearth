@@ -2,31 +2,51 @@ package goearth
 
 import "strings"
 
+// Generate message identifiers.
+//go:generate go run .generate/messages/main.go
+
 // Defines a message direction.
 type Direction int
 
 const (
 	// Represents the incoming (to client) direction.
-	INCOMING Direction = 1 << iota
+	In Direction = 1 << iota
 	// Represents the outgoing (to server) direction.
-	OUTGOING
+	Out
 )
 
 func (d Direction) String() string {
 	switch d {
-	case INCOMING:
+	case In:
 		return "incoming"
-	case OUTGOING:
+	case Out:
 		return "outgoing"
 	default:
 		return "unknown"
 	}
 }
 
-// Represents a message name and direction.
+// Defines a message direction and name.
 type Identifier struct {
 	Dir  Direction
 	Name string
+}
+
+// Defines a message direction and value.
+type Header struct {
+	Dir   Direction
+	Value uint16
+}
+
+// Defines a message direction, value, and name.
+type NamedHeader struct {
+	Header
+	Name string
+}
+
+// Returns true if the header has the same direction and name as the specified identifier.
+func (header *NamedHeader) Is(identifier Identifier) bool {
+	return header.Dir == identifier.Dir && header.Name == identifier.Name
 }
 
 // Defines information about a message.
@@ -39,62 +59,48 @@ type MsgInfo struct {
 	Source    string
 }
 
-// Defines a message name, direction and value.
-type Header struct {
-	dir   Direction
-	value uint16
-	name  string
+func MakeIdentifiers(dir Direction, names ...string) []Identifier {
+	identifiers := make([]Identifier, 0, len(names))
+	for _, name := range names {
+		identifiers = append(identifiers, Identifier{dir, name})
+	}
+	return identifiers
 }
 
-func inHeader(value uint16) *Header {
-	return &Header{INCOMING, value, ""}
+func inHeader(value uint16) *NamedHeader {
+	return &NamedHeader{Header{In, value}, ""}
 }
 
-func outHeader(value uint16) *Header {
-	return &Header{OUTGOING, value, ""}
+func outHeader(value uint16) *NamedHeader {
+	return &NamedHeader{Header{Out, value}, ""}
 }
 
 // Creates a new header with the specified direction, value and name.
-func NewHeader(dir Direction, value uint16, name string) *Header {
-	return &Header{dir, value, name}
-}
-
-// Gets the direction of the header.
-func (h *Header) Dir() Direction {
-	return h.dir
-}
-
-// Gets the value of the header.
-func (h *Header) Value() uint16 {
-	return h.value
-}
-
-// Gets the name of the header.
-func (h *Header) Name() string {
-	return h.name
+func NewHeader(dir Direction, value uint16, name string) *NamedHeader {
+	return &NamedHeader{Header{dir, value}, name}
 }
 
 // Defines a map of incoming and outgoing headers.
 type Headers struct {
-	valueMap map[Direction]map[uint16]*Header
-	nameMap  map[Direction]map[string]*Header
+	valueMap map[Direction]map[uint16]*NamedHeader
+	nameMap  map[Direction]map[string]*NamedHeader
 }
 
 // Creates a new header map.
 func NewHeaders() *Headers {
 	return &Headers{
-		valueMap: map[Direction]map[uint16]*Header{
-			INCOMING: {}, OUTGOING: {},
+		valueMap: map[Direction]map[uint16]*NamedHeader{
+			In: {}, Out: {},
 		},
-		nameMap: map[Direction]map[string]*Header{
-			INCOMING: {}, OUTGOING: {},
+		nameMap: map[Direction]map[string]*NamedHeader{
+			In: {}, Out: {},
 		},
 	}
 }
 
 // Resets the header map.
 func (h *Headers) Reset() {
-	for _, dir := range []Direction{INCOMING, OUTGOING} {
+	for _, dir := range []Direction{In, Out} {
 		for k := range h.valueMap[dir] {
 			delete(h.valueMap[dir], k)
 		}
@@ -105,22 +111,22 @@ func (h *Headers) Reset() {
 }
 
 // Adds a header to the map.
-func (h *Headers) Add(header *Header) {
-	h.valueMap[header.dir][header.value] = header
-	h.nameMap[header.dir][strings.ToLower(header.name)] = header
+func (h *Headers) Add(header *NamedHeader) {
+	h.valueMap[header.Dir][header.Value] = header
+	h.nameMap[header.Dir][strings.ToLower(header.Name)] = header
 }
 
 // Gets the header with the specified identifier. Returns nil if it does not exist.
-func (h *Headers) Get(identifier Identifier) *Header {
+func (h *Headers) Get(identifier Identifier) *NamedHeader {
 	return h.ByName(identifier.Dir, identifier.Name)
 }
 
 // Gets the header with the specified direction and value. Returns nil if it does not exist.
-func (h *Headers) ByValue(dir Direction, value uint16) *Header {
+func (h *Headers) ByValue(dir Direction, value uint16) *NamedHeader {
 	return h.valueMap[dir][value]
 }
 
 // Gets the header with the specified direction and name. Returns nil if it does not exist.
-func (h *Headers) ByName(dir Direction, name string) *Header {
+func (h *Headers) ByName(dir Direction, name string) *NamedHeader {
 	return h.nameMap[dir][strings.ToLower(name)]
 }
