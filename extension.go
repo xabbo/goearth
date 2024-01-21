@@ -226,11 +226,11 @@ func (ext *Ext) Disconnected(handler VoidHandler) {
 func (ext *Ext) Send(identifier Identifier, values ...any) {
 	header := ext.mustResolveIdentifier(identifier)
 	packet := makePacket(ext.client.Type, header, values...)
-	ext.SendP(packet)
+	ext.SendPacket(packet)
 }
 
 // Sends the specified packet to the server or client, based on the header direction.
-func (ext *Ext) SendP(packet *Packet) {
+func (ext *Ext) SendPacket(packet *Packet) {
 	switch packet.Header.Dir {
 	case In, Out:
 	default:
