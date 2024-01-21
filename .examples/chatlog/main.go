@@ -5,6 +5,7 @@ import (
 	"os"
 
 	g "github.com/b7c/goearth"
+	"github.com/b7c/goearth/in"
 )
 
 var ext = g.NewExt(g.ExtInfo{
@@ -21,7 +22,7 @@ var currentRoomData RoomData
 var info *log.Logger
 
 func init() {
-	flags := log.Ldate|log.Ltime
+	flags := log.Ldate | log.Ltime
 	log.SetFlags(flags)
 	info = log.New(os.Stderr, "", flags)
 }
@@ -29,22 +30,22 @@ func init() {
 func main() {
 	ext.Initialized(func(_ *g.InitArgs) { info.Printf("Extension initialized") })
 	ext.Connected(func(_ *g.ConnectArgs) { info.Printf("Game connection established") })
-	ext.Intercept("GetGuestRoomResult").In(handleRoomData)
-	ext.Intercept("OpenConnection").In(handleInitRoom)
-	ext.Intercept("Users").In(handleUsers)
-	ext.Intercept("Chat", "Shout", "Whisper").In(handleChat)
+	ext.Intercept(in.GetGuestRoomResult).With(handleRoomData)
+	ext.Intercept(in.OpenConnection).With(handleInitRoom)
+	ext.Intercept(in.Users).With(handleUsers)
+	ext.Intercept(in.Chat, in.Shout, in.Whisper).With(handleChat)
 	ext.Disconnected(func() { info.Printf("Game connection lost") })
 	ext.Run()
 }
 
 func handleRoomData(e *g.InterceptArgs) {
 	roomData := RoomData{}
-	e.Packet.Read(&roomData)		
+	e.Packet.Read(&roomData)
 	roomCache[roomData.Id] = roomData
 	if currentRoomId == roomData.Id {
 		if currentRoomData.Name != roomData.Name {
-			info.Printf("Room name changed to %q", roomData.Name)	
-		}					
+			info.Printf("Room name changed to %q", roomData.Name)
+		}
 		currentRoomData = roomData
 	}
 }
@@ -64,7 +65,7 @@ func handleUsers(e *g.InterceptArgs) {
 	ents := []Entity{}
 	e.Packet.Read(&ents)
 	for _, ent := range ents {
-		entities[ent.Index] = ent	
+		entities[ent.Index] = ent
 	}
 }
 

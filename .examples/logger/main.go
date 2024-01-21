@@ -51,12 +51,12 @@ func handleIntercept(e *g.InterceptArgs) {
 		bytes = fmt.Sprintf("[% x]", e.Packet.Data)
 	}
 	switch e.Dir() {
-	case g.INCOMING:
+	case g.In:
 		indicator = "<<"
 		color = RED
-	case g.OUTGOING:
+	case g.Out:
 		indicator = ">>"
 		color = CYAN
 	}
-	log.Printf("%s%s %6d %s %s%s\n", color, indicator, e.Sequence(), e.Packet.Header.Name(), bytes, RESET)
+	log.Printf("%s%s %6d %s %s%s\n", color, indicator, e.Sequence(), e.Packet.Header.Name, bytes, RESET)
 }
