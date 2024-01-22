@@ -113,7 +113,7 @@ ext.Intercept(in.Chat, in.Shout, in.Whisper).With(func (e *g.InterceptArgs) {
 ```go
 ext.Intercept(out.MoveAvatar).With(func (e *g.InterceptArgs) {
     // prevent movement
-    e.Block = true
+    e.Block()
 })
 ```
 
