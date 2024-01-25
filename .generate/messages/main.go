@@ -8,7 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
 type Dir string
@@ -116,6 +119,14 @@ func run() (err error) {
 	}
 
 	messages := container.Messages
+	for i, msg := range messages.Incoming {
+		messages.Incoming[i].Name = cleanMessageName(In, msg.Name)
+	}
+	for i, msg := range messages.Outgoing {
+		messages.Outgoing[i].Name = cleanMessageName(Out, msg.Name)
+	}
+	slices.SortFunc(messages.Incoming, sortMessage)
+	slices.SortFunc(messages.Outgoing, sortMessage)
 
 	bufferIncoming, err := generateMessagesSrc(In, release, messages.Incoming)
 	if err != nil {
@@ -132,8 +143,16 @@ func run() (err error) {
 		return
 	}
 	log.Printf("Wrote %d incoming messages", len(messages.Incoming))
+	err = formatSrc("in/in.go")
+	if err != nil {
+		return
+	}
 
 	err = os.WriteFile("out/out.go", bufferOutgoing, 0755)
+	if err != nil {
+		return
+	}
+	err = formatSrc("out/out.go")
 	if err != nil {
 		return
 	}
@@ -155,11 +174,20 @@ func generateMessagesSrc(dir Dir, release Release, messages []Message) (buffer [
 
 	fmt.Fprint(b, "var (\n")
 	for _, message := range messages {
-		fmt.Fprintf(b, "\t%[1]s = id(%[1]q)\n", cleanMessageName(dir, message.Name))
+		fmt.Fprintf(b, "\t%[1]s = id(%[1]q)\n", message.Name)
 	}
 	fmt.Fprint(b, ")\n")
 
 	buffer = b.Bytes()
+	return
+}
+
+func formatSrc(name string) (err error) {
+	cmd := exec.Command("go", "fmt", name)
+	err = cmd.Start()
+	if err == nil {
+		err = cmd.Wait()
+	}
 	return
 }
 
@@ -175,4 +203,14 @@ func cleanMessageName(dir Dir, name string) (result string) {
 		result = strings.TrimSuffix(result, "Message")
 	}
 	return
+}
+
+func sortMessage(a, b Message) int {
+	if a.Name < b.Name {
+		return -1
+	}
+	if a.Name > b.Name {
+		return 1
+	}
+	return 0
 }
