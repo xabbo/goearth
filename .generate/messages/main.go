@@ -164,7 +164,7 @@ func run() (err error) {
 func generateMessagesSrc(dir Dir, release Release, messages []Message) (buffer []byte, err error) {
 	b := bytes.NewBuffer(nil)
 
-	fmt.Fprintf(b, "// Source generated for release %s (source: Sulek API)\n\n", release.Version)
+	fmt.Fprintf(b, "// Generated for release %s (source: sulek.dev)\n\n", release.Version)
 	fmt.Fprintf(b, "package %s\n\n", strings.ToLower(string(dir)))
 	fmt.Fprint(b, "import g \"github.com/b7c/goearth\"\n\n")
 
