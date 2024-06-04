@@ -280,35 +280,24 @@ func (ext *Ext) Run() {
 
 	// allocate buffer with extension protocol overhead
 	buf := make([]byte, 64+maxIncomingPacketSize)
-	var idx int
 
+	var err error
 	for {
-		idx = 0
-		for idx < 4 {
-			n, err := ext.conn.Read(buf[idx:4])
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return
-				}
-				panic(err)
-			}
-			idx += n
+		_, err = io.ReadFull(ext.conn, buf[:4])
+		if err != nil {
+			break
 		}
+
 		packetLength := int(binary.BigEndian.Uint32(buf[0:4]))
 		if packetLength < 2 || packetLength > len(buf) {
 			panic(fmt.Errorf("received invalid packet length: %d", packetLength))
 		}
-		idx = 0
-		for idx < packetLength {
-			n, err := ext.conn.Read(buf[idx:packetLength])
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return
-				}
-				panic(err)
-			}
-			idx += n
+
+		_, err := io.ReadFull(ext.conn, buf[:packetLength])
+		if err != nil {
+			break
 		}
+
 		hdr := outHeader(binary.BigEndian.Uint16(buf[0:2]))
 		pkt := Packet{Header: hdr, Data: buf[2:packetLength]}
 		switch pkt.Header.Value {
@@ -325,6 +314,10 @@ func (ext *Ext) Run() {
 		case gInPacketIntercept:
 			ext.handlePacketIntercept(&pkt)
 		}
+	}
+
+	if !errors.Is(err, io.EOF) {
+		panic(err)
 	}
 }
 
