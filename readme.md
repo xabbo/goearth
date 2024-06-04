@@ -16,7 +16,7 @@ Check out the [examples](.examples/) for reference.
 ```go
 package main
 
-import g "github.com/b7c/goearth"
+import g "xabbo.b7c.io/goearth"
 
 var ext = g.NewExt(g.ExtInfo{
     Title: "Your extension",
@@ -47,8 +47,8 @@ You should see your extension appear in G-Earth's extension list.
 
 Import the `in`/`out` packages to access the respective incoming/outgoing message identifiers.
 ```go
-import "github.com/b7c/goearth/in"
-import "github.com/b7c/goearth/out"
+import "xabbo.b7c.io/goearth/in"
+import "xabbo.b7c.io/goearth/out"
 ```
 
 ### Events
