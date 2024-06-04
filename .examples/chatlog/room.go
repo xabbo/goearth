@@ -1,6 +1,6 @@
 package main
 
-import g "xabbo.b7c.io/goe"
+import g "xabbo.b7c.io/goearth"
 
 type RoomData struct {
 	EnterRoom bool
