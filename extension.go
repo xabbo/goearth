@@ -302,15 +302,15 @@ func (ext *Ext) Run() {
 		pkt := Packet{Header: hdr, Data: buf[2:packetLength]}
 		switch pkt.Header.Value {
 		case gInInfoRequest:
-			ext.handleInfoRequest(&pkt)
+			ext.handleInfoRequest()
 		case gInInit:
 			ext.handleInit(&pkt)
 		case gInClick:
-			ext.handleActivated(&pkt)
+			ext.handleActivated()
 		case gInConnectionStart:
 			ext.handleConnectionStart(&pkt)
 		case gInConnectionEnd:
-			ext.handleConnectionEnd(&pkt)
+			ext.handleConnectionEnd()
 		case gInPacketIntercept:
 			ext.handlePacketIntercept(&pkt)
 		}
@@ -402,13 +402,13 @@ func (ext *Ext) handleInit(p *Packet) {
 	})
 }
 
-func (ext *Ext) handleInfoRequest(p *Packet) {
+func (ext *Ext) handleInfoRequest() {
 	res := NewPacket(outHeader(gOutInfo))
 	res.Write(&ext.info)
 	ext.sendRaw(res)
 }
 
-func (ext *Ext) handleActivated(p *Packet) {
+func (ext *Ext) handleActivated() {
 	ext.activated.Dispatch()
 }
 
@@ -436,7 +436,7 @@ func (ext *Ext) handleConnectionStart(p *Packet) {
 	ext.connected.Dispatch(&args)
 }
 
-func (ext *Ext) handleConnectionEnd(p *Packet) {
+func (ext *Ext) handleConnectionEnd() {
 	ext.isConnected = false
 	ext.clearIntercepts()
 	ext.disconnected.Dispatch()
