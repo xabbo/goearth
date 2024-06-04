@@ -166,7 +166,7 @@ func generateMessagesSrc(dir Dir, release Release, messages []Message) (buffer [
 
 	fmt.Fprintf(b, "// Generated for release %s (source: sulek.dev)\n\n", release.Version)
 	fmt.Fprintf(b, "package %s\n\n", strings.ToLower(string(dir)))
-	fmt.Fprint(b, "import g \"github.com/b7c/goearth\"\n\n")
+	fmt.Fprint(b, "import g \"xabbo.b7c.io/goe\"\n\n")
 
 	fmt.Fprint(b, "func id(name string) g.Identifier {\n")
 	fmt.Fprintf(b, "\treturn g.Identifier{Dir: g.%s, Name: name}\n", dir)

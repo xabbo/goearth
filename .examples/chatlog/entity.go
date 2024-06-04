@@ -1,6 +1,6 @@
 package main
 
-import g "github.com/b7c/goearth"
+import g "xabbo.b7c.io/goe"
 
 type EntityType int
 

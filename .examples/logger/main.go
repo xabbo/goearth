@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	g "github.com/b7c/goearth"
+	g "xabbo.b7c.io/goe"
 )
 
 const (

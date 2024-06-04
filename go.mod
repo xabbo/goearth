@@ -1,4 +1,4 @@
-module github.com/b7c/goearth
+module xabbo.b7c.io/goearth
 
 go 1.21
 

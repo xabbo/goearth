@@ -2,7 +2,7 @@
 
 package out
 
-import g "github.com/b7c/goearth"
+import g "xabbo.b7c.io/goearth"
 
 func id(name string) g.Identifier {
 	return g.Identifier{Dir: g.Out, Name: name}

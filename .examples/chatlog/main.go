@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	g "github.com/b7c/goearth"
-	"github.com/b7c/goearth/in"
+	g "xabbo.b7c.io/goe"
+	"xabbo.b7c.io/goe/in"
 )
 
 var ext = g.NewExt(g.ExtInfo{
