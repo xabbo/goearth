@@ -3,7 +3,7 @@ Go extension API for the Habbo packet interceptor [G-Earth](https://github.com/s
 
 ## Requirements
 
-Requires [Go](https://go.dev/dl/) 1.21+.
+Requires [Go](https://go.dev/dl/) 1.22+.
 
 ## Usage
 
