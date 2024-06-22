@@ -15,6 +15,11 @@ const (
 	Out
 )
 
+// Id creates an identifier using the provided direction and name.
+func (d Direction) Id(name string) Identifier {
+	return Identifier{d, name}
+}
+
 func (d Direction) String() string {
 	switch d {
 	case In:
