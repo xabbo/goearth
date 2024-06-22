@@ -362,7 +362,6 @@ func wrapPacket(packet *Packet) *Packet {
 	} else {
 		pkt.WriteInt(1)
 	}
-	fmt.Println(string(pkt.Data))
 	return pkt
 }
 
