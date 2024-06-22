@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strconv"
 	"unsafe"
+
+	"xabbo.b7c.io/goearth/encoding"
 )
 
 var tParsable = reflect.TypeOf((*Parsable)(nil)).Elem()
@@ -118,10 +120,10 @@ func (p *Packet) ReadBoolPtr(pos *int) (value bool) {
 	p.assertCanRead(*pos, 1)
 	var i int
 	if p.Client == Shockwave {
-		if vl64lenEncoded(p.Data[*pos]) != 1 {
+		if encoding.VL64EncodedLen(p.Data[*pos]) != 1 {
 			panic(fmt.Errorf("attempt to read boolean when VL64 length > 1"))
 		}
-		i = vl64decode(p.Data[*pos : *pos+1])
+		i = encoding.VL64Decode(p.Data[*pos : *pos+1])
 	} else {
 		i = int(p.Data[*pos])
 	}
@@ -550,6 +552,10 @@ func (p *Packet) WriteShort(value int16) *Packet {
 
 // Writes an int at the specified position.
 func (p *Packet) WriteIntPtr(pos *int, value int) *Packet {
+	if p.Client == Shockwave {
+		p.WriteVL64Ptr(pos, value)
+		return p
+	}
 	p.ensureLength(*pos, 4)
 	binary.BigEndian.PutUint32(p.Data[*pos:], uint32(value))
 	*pos += 4
@@ -889,7 +895,7 @@ func (p *Packet) ReadB64() int16 {
 // Writes a 2-byte B64 value at the specified position.
 func (p *Packet) WriteB64Ptr(pos *int, value int) *Packet {
 	p.ensureLength(*pos, 2)
-	b64encode(p.Data[*pos:*pos+2], int(value))
+	encoding.B64Encode(p.Data[*pos:*pos+2], int(value))
 	*pos += 2
 	return p
 }
@@ -908,9 +914,9 @@ func (p *Packet) WriteB64(value int) *Packet {
 
 // Writes a VL64 at the specified position.
 func (p *Packet) WriteVL64Ptr(pos *int, value int) *Packet {
-	n := vl64len(value)
+	n := encoding.VL64Len(value)
 	p.ensureLength(*pos, n)
-	vl64encode(p.Data[*pos:], value)
+	encoding.VL64Encode(p.Data[*pos:], value)
 	*pos += n
 	return p
 }
@@ -930,9 +936,9 @@ func (p *Packet) WriteVL64(value int) *Packet {
 // Reads a VL64 from the specified position.
 func (p *Packet) ReadVL64Ptr(pos *int) int {
 	p.assertCanRead(*pos, 1)
-	n := vl64lenEncoded(p.Data[*pos])
+	n := encoding.VL64EncodedLen(p.Data[*pos])
 	p.assertCanRead(*pos, n)
-	value := vl64decode(p.Data[*pos : *pos+n])
+	value := encoding.VL64Decode(p.Data[*pos : *pos+n])
 	*pos += n
 	return value
 }

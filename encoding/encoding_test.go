@@ -1,4 +1,4 @@
-package goearth
+package encoding
 
 import (
 	"testing"
@@ -64,7 +64,7 @@ var b64_tests = map[int]string{
 
 func TestVL64len(t *testing.T) {
 	for value, expected := range vl64len_tests {
-		actual := vl64len(value)
+		actual := VL64Len(value)
 		if actual != expected {
 			t.Fatalf("vl64len(%d) was %d, expected %d", value, actual, expected)
 		}
@@ -73,9 +73,9 @@ func TestVL64len(t *testing.T) {
 
 func TestVL64encode(t *testing.T) {
 	for value, expected := range vl64_tests {
-		length := vl64len(value)
+		length := VL64Len(value)
 		buf := make([]byte, length)
-		vl64encode(buf, value)
+		VL64Encode(buf, value)
 		actual := string(buf)
 		if actual != expected {
 			t.Fatalf("vl64encode(%d) was %q, expected %q", value, actual, expected)
@@ -86,7 +86,7 @@ func TestVL64encode(t *testing.T) {
 func TestVL64decode(t *testing.T) {
 	for expected, encoded := range vl64_tests {
 		buf := []byte(encoded)
-		actual := vl64decode(buf)
+		actual := VL64Decode(buf)
 		if actual != expected {
 			t.Fatalf("vl64decode(%q) was %d, expected %d", encoded, actual, expected)
 		}
@@ -96,7 +96,7 @@ func TestVL64decode(t *testing.T) {
 func TestB64encode(t *testing.T) {
 	for value, expected := range b64_tests {
 		buf := make([]byte, 2)
-		b64encode(buf, value)
+		B64Encode(buf, value)
 		actual := string(buf)
 		if actual != expected {
 			t.Fatalf("b64encode(%d) was %q, expected %q", value, actual, expected)
@@ -106,7 +106,7 @@ func TestB64encode(t *testing.T) {
 
 func TestB64decode(t *testing.T) {
 	for expected, encoded := range b64_tests {
-		actual := b64decode([]byte(encoded))
+		actual := B64Decode([]byte(encoded))
 		if actual != expected {
 			t.Fatalf("b64decode(%q) was %d, expected %d", encoded, actual, expected)
 		}
