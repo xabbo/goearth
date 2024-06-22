@@ -528,6 +528,10 @@ func (p *Packet) WriteBytes(value []byte) *Packet {
 
 // Writes a short at the specified position.
 func (p *Packet) WriteShortPtr(pos *int, value int16) *Packet {
+	if p.Client == Shockwave {
+		p.WriteB64Ptr(pos, int(value))
+		return p
+	}
 	p.ensureLength(*pos, 2)
 	binary.BigEndian.PutUint16(p.Data[*pos:], uint16(value))
 	*pos += 2
