@@ -1,11 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"strings"
 
 	g "xabbo.b7c.io/goearth"
-	"xabbo.b7c.io/goearth/in"
-	"xabbo.b7c.io/goearth/out"
 )
 
 var ext = g.NewExt(g.ExtInfo{
@@ -16,26 +15,21 @@ var ext = g.NewExt(g.ExtInfo{
 })
 
 func main() {
-	ext.Initialized(func(e *g.InitArgs) { fmt.Printf("Initialized (connected=%t)\n", e.Connected) })
-	ext.Connected(func(e *g.ConnectArgs) { fmt.Printf("Connected (%s)\n", e.Host) })
-	ext.Intercept(in.Chat).With(handleChat)
-	ext.Intercept(out.Chat).With(handleChat)
-	ext.Connected(func(e *g.ConnectArgs) {
-		fmt.Println(e.Client)
-		pkt := ext.NewPacket(g.Identifier{g.Out, "CHAT"})
-		pkt.WriteString(fmt.Sprintf("connected to %s", e.Client.Identifier))
-		ext.SendPacket(pkt)
-	})
+	ext.Initialized(func(e *g.InitArgs) { log.Printf("Initialized (connected=%t)", e.Connected) })
+	ext.Connected(func(e *g.ConnectArgs) { log.Printf("Connected (%s)", e.Host) })
+	ext.Disconnected(func() { log.Println("Disconnected") })
+	// intercept arbitrary message names with InterceptIn/Out
+	ext.InterceptIn("Chat", "Chat_2", "Chat_3").With(handleChat)
 	ext.Run()
 }
 
+// wave when someone says "hello"
 func handleChat(e *g.InterceptArgs) {
-	if e.Dir() == g.In {
-		index := e.Packet.ReadInt()
-		msg := e.Packet.ReadString()
-		fmt.Println(index, msg)
-	} else if e.Dir() == g.Out {
-		msg := e.Packet.ReadString()
-		fmt.Println(msg)
+	e.Packet.Skip(0) // skip an integer
+	msg := e.Packet.ReadString()
+	if strings.Contains(strings.ToLower(msg), "hello") {
+		// send packets with arbitrary message names,
+		// not defined in `in`/`out` packages
+		ext.Send(g.Out.Id("Wave"))
 	}
 }
