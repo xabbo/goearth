@@ -552,17 +552,17 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	diff := pktModified.Length() - preLen
 	newLen := p.Length() + diff
 	p.Header.Value = gOutManipulatedPacket
-	p.WriteIntAt(newLen-4-len(tail), 0)
-	p.WriteByteAt(zeroOneChr(intercept.block), 4)
-	p.WriteByteAt(zeroOneChr(modified), tabs[2]+1)
+	p.WriteIntAt(0, newLen-4-len(tail))
+	p.WriteByteAt(4, zeroOneChr(intercept.block))
+	p.WriteByteAt(tabs[2]+1, zeroOneChr(modified))
 	if ext.client.Type != Shockwave {
-		p.WriteIntAt(2+pktModified.Length(), tabs[2]+2)
-		p.WriteShortAt(int16(pktModified.Header.Value), packetOffset)
+		p.WriteIntAt(tabs[2]+2, 2+pktModified.Length())
+		p.WriteShortAt(packetOffset, int16(pktModified.Header.Value))
 	} else {
 		p.WriteB64At(packetOffset, int(pktModified.Header.Value))
 	}
-	p.WriteBytesAt(pktModified.Data, packetOffset+2)
-	p.WriteBytesAt(tail, tailOffset+diff)
+	p.WriteBytesAt(packetOffset+2, pktModified.Data)
+	p.WriteBytesAt(tailOffset+diff, tail)
 	p.Data = p.Data[:newLen]
 	ext.sendRaw(p)
 }

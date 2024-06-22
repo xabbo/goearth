@@ -122,7 +122,7 @@ ext.Intercept(out.MoveAvatar).With(func (e *g.InterceptArgs) {
 ```go
 ext.Intercept(in.Chat, in.Shout).With(func(e *g.InterceptArgs) {
     // make everyone's chat messages uppercase
-    e.Packet.ModifyStringAt(strings.ToUpper, 4)
+    e.Packet.ModifyStringAt(4, strings.ToUpper)
 })
 ```
 

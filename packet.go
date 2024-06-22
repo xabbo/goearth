@@ -41,11 +41,11 @@ type Composable interface {
 }
 
 func (id *Id) Parse(pkt *Packet, pos *int) {
-	*id = pkt.ReadIdAtPtr(pos)
+	*id = pkt.ReadIdPtr(pos)
 }
 
 func (length *Length) Parse(pkt *Packet, pos *int) {
-	*length = pkt.ReadLengthAtPtr(pos)
+	*length = pkt.ReadLengthPtr(pos)
 }
 
 func (floatStr *FloatStr) Parse(pkt *Packet, pos *int) {
@@ -98,7 +98,7 @@ func (p *Packet) Length() int {
 
 /* Reading */
 
-func (p *Packet) ReadBufferAtPtr(pos *int, buf []byte) {
+func (p *Packet) ReadBufferPtr(pos *int, buf []byte) {
 	length := len(buf)
 	p.assertCanRead(*pos, length)
 	copy(buf, p.Data[*pos:])
@@ -106,15 +106,15 @@ func (p *Packet) ReadBufferAtPtr(pos *int, buf []byte) {
 }
 
 func (p *Packet) ReadBufferAt(pos int, buf []byte) {
-	p.ReadBufferAtPtr(&pos, buf)
+	p.ReadBufferPtr(&pos, buf)
 }
 
 func (p *Packet) ReadBuffer(buf []byte) {
-	p.ReadBufferAtPtr(&p.Pos, buf)
+	p.ReadBufferPtr(&p.Pos, buf)
 }
 
-// Reads a bool from the specified position in the packet and advances the position.
-func (p *Packet) ReadBoolAtPtr(pos *int) (value bool) {
+// Reads a bool from the specified position and advances the position.
+func (p *Packet) ReadBoolPtr(pos *int) (value bool) {
 	p.assertCanRead(*pos, 1)
 	var i int
 	if p.Client == Shockwave {
@@ -133,71 +133,71 @@ func (p *Packet) ReadBoolAtPtr(pos *int) (value bool) {
 	return
 }
 
-// Reads a bool from the specified position in the packet.
+// Reads a bool from the specified position.
 func (p *Packet) ReadBoolAt(pos int) bool {
-	return p.ReadBoolAtPtr(&pos)
+	return p.ReadBoolPtr(&pos)
 }
 
 // Reads a bool from the current position in the packet.
 func (p *Packet) ReadBool() bool {
-	return p.ReadBoolAtPtr(&p.Pos)
+	return p.ReadBoolPtr(&p.Pos)
 }
 
-// Reads a byte from the specified position in the packet and advances the position.
-func (p *Packet) ReadByteAtPtr(pos *int) (value byte) {
+// Reads a byte from the specified position and advances the position.
+func (p *Packet) ReadBytePtr(pos *int) (value byte) {
 	p.assertCanRead(*pos, 1)
 	value = p.Data[*pos]
 	*pos++
 	return
 }
 
-// Reads a byte from the specified position in the packet.
+// Reads a byte from the specified position.
 func (p *Packet) ReadByteAt(pos int) byte {
-	return p.ReadByteAtPtr(&pos)
+	return p.ReadBytePtr(&pos)
 }
 
 // Reads a byte from the current position in the packet.
 func (p *Packet) ReadByte() byte {
-	return p.ReadByteAtPtr(&p.Pos)
+	return p.ReadBytePtr(&p.Pos)
 }
 
-// Copies `n` bytes from the specified position in the packet and advances the position.
-func (p *Packet) ReadBytesAtPtr(pos *int, n int) (value []byte) {
+// Copies `n` bytes from the specified position and advances the position.
+func (p *Packet) ReadBytesPtr(pos *int, n int) (value []byte) {
 	p.assertCanRead(*pos, n)
 	value = make([]byte, n)
 	*pos += copy(value, p.Data[*pos:])
 	return
 }
 
-// Copies `n` bytes from the specified position in the packet.
+// Copies `n` bytes from the specified position.
 func (p *Packet) ReadBytesAt(pos int, length int) []byte {
-	return p.ReadBytesAtPtr(&pos, length)
+	return p.ReadBytesPtr(&pos, length)
 }
 
 // Copies `n` bytes from the current position in the packet.
 func (p *Packet) ReadBytes(length int) []byte {
-	return p.ReadBytesAtPtr(&p.Pos, length)
+	return p.ReadBytesPtr(&p.Pos, length)
 }
 
-// Reads a short from the specified position in the packet and advances the position.
-func (p *Packet) ReadShortAtPtr(pos *int) (value int16) {
+// Reads a short from the specified position and advances the position.
+func (p *Packet) ReadShortPtr(pos *int) (value int16) {
 	p.assertCanRead(*pos, 2)
 	value = int16(binary.BigEndian.Uint16(p.Data[*pos:]))
 	*pos += 2
 	return
 }
 
-// Reads a short from the specified position in the packet.
+// Reads a short from the specified position.
 func (p *Packet) ReadShortAt(pos int) int16 {
-	return p.ReadShortAtPtr(&pos)
+	return p.ReadShortPtr(&pos)
 }
 
 // Reads a short from the current position in the packet.
 func (p *Packet) ReadShort() int16 {
-	return p.ReadShortAtPtr(&p.Pos)
+	return p.ReadShortPtr(&p.Pos)
 }
 
-// Reads an int from the specified position in the packet and advances the position.
+// Reads an int from the specified position and advances the position.
 func (p *Packet) ReadIntPtr(pos *int) (value int) {
 	if p.Client == Shockwave {
 		return p.ReadVL64Ptr(pos)
@@ -208,7 +208,7 @@ func (p *Packet) ReadIntPtr(pos *int) (value int) {
 	return
 }
 
-// Reads an int from the specified position in the packet.
+// Reads an int from the specified position.
 func (p *Packet) ReadIntAt(pos int) int {
 	return p.ReadIntPtr(&pos)
 }
@@ -218,8 +218,8 @@ func (p *Packet) ReadInt() int {
 	return p.ReadIntPtr(&p.Pos)
 }
 
-// Reads a float from the specified position in the packet and advances the position.
-func (p *Packet) ReadFloatAtPtr(pos *int) (value float32) {
+// Reads a float from the specified position and advances the position.
+func (p *Packet) ReadFloatPtr(pos *int) (value float32) {
 	if p.Client == Shockwave {
 		panic(fmt.Errorf("%w: attempt to read float on Shockwave session", errors.ErrUnsupported))
 	}
@@ -230,18 +230,18 @@ func (p *Packet) ReadFloatAtPtr(pos *int) (value float32) {
 	return
 }
 
-// Reads a float from the specified position in the packet.
+// Reads a float from the specified position.
 func (p *Packet) ReadFloatAt(pos int) float32 {
-	return p.ReadFloatAtPtr(&pos)
+	return p.ReadFloatPtr(&pos)
 }
 
 // Reads a float from the current position in the packet.
 func (p *Packet) ReadFloat() float32 {
-	return p.ReadFloatAtPtr(&p.Pos)
+	return p.ReadFloatPtr(&p.Pos)
 }
 
-// Reads a long from the specified position in the packet and advances the position.
-func (p *Packet) ReadLongAtPtr(pos *int) (value int64) {
+// Reads a long from the specified position and advances the position.
+func (p *Packet) ReadLongPtr(pos *int) (value int64) {
 	if p.Client == Shockwave {
 		panic(fmt.Errorf("%w: attempt to read long on Shockwave session", errors.ErrUnsupported))
 	}
@@ -253,17 +253,17 @@ func (p *Packet) ReadLongAtPtr(pos *int) (value int64) {
 	return
 }
 
-// Reads a long from the specified position in the packet.
+// Reads a long from the specified position.
 func (p *Packet) ReadLongAt(pos int) int64 {
-	return p.ReadLongAtPtr(&pos)
+	return p.ReadLongPtr(&pos)
 }
 
 // Reads a long from the current position in the packet.
 func (p *Packet) ReadLong() int64 {
-	return p.ReadLongAtPtr(&p.Pos)
+	return p.ReadLongPtr(&p.Pos)
 }
 
-// Reads a string from the specified position in the packet and advances the position.
+// Reads a string from the specified position and advances the position.
 func (p *Packet) ReadStringPtr(pos *int) (value string) {
 	if p.Client == Shockwave && p.Header.Dir == In {
 		i := *pos
@@ -290,7 +290,7 @@ func (p *Packet) ReadStringPtr(pos *int) (value string) {
 	return
 }
 
-// Reads a string from the specified position in the packet.
+// Reads a string from the specified position.
 func (p *Packet) ReadStringAt(pos int) string {
 	return p.ReadStringPtr(&pos)
 }
@@ -300,31 +300,31 @@ func (p *Packet) ReadString() string {
 	return p.ReadStringPtr(&p.Pos)
 }
 
-// Reads a Length from the specified position in the packet and advances the position.
-func (p *Packet) ReadLengthAtPtr(pos *int) (length Length) {
+// Reads a Length from the specified position and advances the position.
+func (p *Packet) ReadLengthPtr(pos *int) (length Length) {
 	switch p.Client {
 	case Unity, Shockwave:
-		return Length(p.ReadShortAtPtr(pos))
+		return Length(p.ReadShortPtr(pos))
 	default:
 		return Length(p.ReadIntPtr(pos))
 	}
 }
 
-// Reads a Length from the specified position in the packet.
+// Reads a Length from the specified position.
 func (p *Packet) ReadLengthAt(pos int) Length {
-	return p.ReadLengthAtPtr(&pos)
+	return p.ReadLengthPtr(&pos)
 }
 
 // Reads a Length from the current position in the packet.
 func (p *Packet) ReadLength() Length {
-	return p.ReadLengthAtPtr(&p.Pos)
+	return p.ReadLengthPtr(&p.Pos)
 }
 
-// Reads an Id from the specified position in the packet and advances the position.
-func (p *Packet) ReadIdAtPtr(pos *int) (id Id) {
+// Reads an Id from the specified position and advances the position.
+func (p *Packet) ReadIdPtr(pos *int) (id Id) {
 	switch p.Client {
 	case Unity:
-		return Id(p.ReadLongAtPtr(pos))
+		return Id(p.ReadLongPtr(pos))
 	case Flash, Shockwave:
 		return Id(p.ReadIntPtr(pos))
 	default:
@@ -332,17 +332,17 @@ func (p *Packet) ReadIdAtPtr(pos *int) (id Id) {
 	}
 }
 
-// Reads an Id from the specified position in the packet.
+// Reads an Id from the specified position.
 func (p *Packet) ReadIdAt(pos int) Id {
-	return p.ReadIdAtPtr(&pos)
+	return p.ReadIdPtr(&pos)
 }
 
 // Reads an Id from the current position in the packet.
 func (p *Packet) ReadId() Id {
-	return p.ReadIdAtPtr(&p.Pos)
+	return p.ReadIdPtr(&p.Pos)
 }
 
-// Reads values from the specified position in the packet and advances the position.
+// Reads values from the specified position and advances the position.
 func (p *Packet) ReadPtr(pos *int, values ...any) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -350,13 +350,13 @@ func (p *Packet) ReadPtr(pos *int, values ...any) {
 		}
 	}()
 	for _, v := range values {
-		if !p.readInterfaceAt(pos, v) {
-			p.readReflectAt(pos, reflect.ValueOf(v))
+		if !p.readInterfacePtr(pos, v) {
+			p.readReflectPtr(pos, reflect.ValueOf(v))
 		}
 	}
 }
 
-// Reads values from the specified position in the packet.
+// Reads values from the specified position.
 func (p *Packet) ReadAt(pos int, values ...any) {
 	p.ReadPtr(&pos, values...)
 }
@@ -366,7 +366,7 @@ func (p *Packet) Read(values ...any) {
 	p.ReadPtr(&p.Pos, values...)
 }
 
-func (p *Packet) readReflectAt(pos *int, v reflect.Value) {
+func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 	parsable := false
 	if v.CanAddr() {
 		a := v.Addr()
@@ -380,29 +380,29 @@ func (p *Packet) readReflectAt(pos *int, v reflect.Value) {
 	}
 	switch v.Kind() {
 	case reflect.Pointer:
-		p.readReflectAt(pos, v.Elem())
+		p.readReflectPtr(pos, v.Elem())
 	case reflect.Array:
 		n := v.Len()
 		for i := 0; i < n; i++ {
-			p.readReflectAt(&p.Pos, v.Index(i))
+			p.readReflectPtr(&p.Pos, v.Index(i))
 		}
 	case reflect.Slice:
 		t := v.Type()
-		len := int(p.ReadLengthAtPtr(pos))
+		len := int(p.ReadLengthPtr(pos))
 		slc := reflect.MakeSlice(t, len, len)
 		for i := 0; i < len; i++ {
-			p.readReflectAt(pos, slc.Index(i))
+			p.readReflectPtr(pos, slc.Index(i))
 		}
 		v.Set(slc)
 	case reflect.Struct:
 		n := v.NumField()
 		for i := 0; i < n; i++ {
 			if v := v.Field(i); v.CanSet() {
-				p.readReflectAt(pos, v)
+				p.readReflectPtr(pos, v)
 			}
 		}
 	case reflect.Interface:
-		if p.readInterfaceAt(pos, v.Interface()) {
+		if p.readInterfacePtr(pos, v.Interface()) {
 			return
 		}
 	default:
@@ -410,7 +410,7 @@ func (p *Packet) readReflectAt(pos *int, v reflect.Value) {
 			v = v.Addr()
 		}
 		if v.CanInterface() {
-			if p.readInterfaceAt(pos, v.Interface()) {
+			if p.readInterfacePtr(pos, v.Interface()) {
 				return
 			}
 		}
@@ -423,18 +423,18 @@ func (p *Packet) readReflectAt(pos *int, v reflect.Value) {
 	}
 }
 
-func (p *Packet) readInterfaceAt(pos *int, value any) bool {
+func (p *Packet) readInterfacePtr(pos *int, value any) bool {
 	switch v := value.(type) {
 	case Parsable:
 		v.Parse(p, pos)
 	case *bool:
-		*v = p.ReadBoolAtPtr(pos)
+		*v = p.ReadBoolPtr(pos)
 	case *byte:
-		*v = p.ReadByteAtPtr(pos)
+		*v = p.ReadBytePtr(pos)
 	case *int16:
-		*v = p.ReadShortAtPtr(pos)
+		*v = p.ReadShortPtr(pos)
 	case *uint16:
-		*v = uint16(p.ReadShortAtPtr(pos))
+		*v = uint16(p.ReadShortPtr(pos))
 	case *int:
 		*v = p.ReadIntPtr(pos)
 	case *uint:
@@ -444,17 +444,17 @@ func (p *Packet) readInterfaceAt(pos *int, value any) bool {
 	case *uint32:
 		*v = uint32(p.ReadIntPtr(pos))
 	case *float32:
-		*v = p.ReadFloatAtPtr(pos)
+		*v = p.ReadFloatPtr(pos)
 	case *float64:
-		*v = float64(p.ReadFloatAtPtr(pos))
+		*v = float64(p.ReadFloatPtr(pos))
 	case *int64:
-		*v = p.ReadLongAtPtr(pos)
+		*v = p.ReadLongPtr(pos)
 	case *uint64:
-		*v = uint64(p.ReadLongAtPtr(pos))
+		*v = uint64(p.ReadLongPtr(pos))
 	case *string:
 		*v = p.ReadStringPtr(pos)
 	case []byte:
-		p.ReadBufferAtPtr(pos, v)
+		p.ReadBufferPtr(pos, v)
 	default:
 		return false
 	}
@@ -463,8 +463,8 @@ func (p *Packet) readInterfaceAt(pos *int, value any) bool {
 
 /* Writing */
 
-// Writes a bool at the specified position in the packet and advances the position.
-func (p *Packet) WriteBoolAtPtr(value bool, pos *int) *Packet {
+// Writes a bool at the specified position and advances the position.
+func (p *Packet) WriteBoolPtr(pos *int, value bool) *Packet {
 	p.ensureLength(*pos, 1)
 	b := uint8(0)
 	if value {
@@ -479,36 +479,36 @@ func (p *Packet) WriteBoolAtPtr(value bool, pos *int) *Packet {
 	return p
 }
 
-// Writes a bool at the specified position in the packet.
-func (p *Packet) WriteBoolAt(value bool, pos int) *Packet {
-	return p.WriteBoolAtPtr(value, &pos)
+// Writes a bool at the specified position.
+func (p *Packet) WriteBoolAt(pos int, value bool) *Packet {
+	return p.WriteBoolPtr(&pos, value)
 }
 
 // Writes a bool at the current position in the packet.
 func (p *Packet) WriteBool(value bool) *Packet {
-	return p.WriteBoolAtPtr(value, &p.Pos)
+	return p.WriteBoolPtr(&p.Pos, value)
 }
 
-// Writes a byte at the specified position in the packet and advances the position.
-func (p *Packet) WriteByteAtPtr(value byte, pos *int) *Packet {
+// Writes a byte at the specified position and advances the position.
+func (p *Packet) WriteBytePtr(pos *int, value byte) *Packet {
 	p.ensureLength(*pos, 1)
 	p.Data[*pos] = value
 	*pos++
 	return p
 }
 
-// Writes a byte at the specified position in the packet.
-func (p *Packet) WriteByteAt(value byte, pos int) *Packet {
-	return p.WriteByteAtPtr(value, &pos)
+// Writes a byte at the specified position.
+func (p *Packet) WriteByteAt(pos int, value byte) *Packet {
+	return p.WriteBytePtr(&pos, value)
 }
 
 // Writes a byte at the current position in the packet.
 func (p *Packet) WriteByte(value byte) *Packet {
-	return p.WriteByteAtPtr(value, &p.Pos)
+	return p.WriteBytePtr(&p.Pos, value)
 }
 
-// Writes a slice of bytes at the specified position in the packet and advances the position.
-func (p *Packet) WriteBytesAtPtr(value []byte, pos *int) *Packet {
+// Writes a slice of bytes at the specified position and advances the position.
+func (p *Packet) WriteBytesPtr(pos *int, value []byte) *Packet {
 	length := len(value)
 	p.ensureLength(*pos, length)
 	copy(p.Data[*pos:], value)
@@ -516,54 +516,54 @@ func (p *Packet) WriteBytesAtPtr(value []byte, pos *int) *Packet {
 	return p
 }
 
-// Writes a slice of bytes at the specified position in the packet.
-func (p *Packet) WriteBytesAt(value []byte, pos int) *Packet {
-	return p.WriteBytesAtPtr(value, &pos)
+// Writes a slice of bytes at the specified position.
+func (p *Packet) WriteBytesAt(pos int, value []byte) *Packet {
+	return p.WriteBytesPtr(&pos, value)
 }
 
 // Writes a slice of bytes at the current position in the packet.
 func (p *Packet) WriteBytes(value []byte) *Packet {
-	return p.WriteBytesAtPtr(value, &p.Pos)
+	return p.WriteBytesPtr(&p.Pos, value)
 }
 
-// Writes a short at the specified position in the packet.
-func (p *Packet) WriteShortAtPtr(value int16, pos *int) *Packet {
+// Writes a short at the specified position.
+func (p *Packet) WriteShortPtr(pos *int, value int16) *Packet {
 	p.ensureLength(*pos, 2)
 	binary.BigEndian.PutUint16(p.Data[*pos:], uint16(value))
 	*pos += 2
 	return p
 }
 
-// Writes a short at the specified position in the packet.
-func (p *Packet) WriteShortAt(value int16, pos int) *Packet {
-	return p.WriteShortAtPtr(value, &pos)
+// Writes a short at the specified position.
+func (p *Packet) WriteShortAt(pos int, value int16) *Packet {
+	return p.WriteShortPtr(&pos, value)
 }
 
 // Writes a short at the current position in the packet.
 func (p *Packet) WriteShort(value int16) *Packet {
-	return p.WriteShortAtPtr(value, &p.Pos)
+	return p.WriteShortPtr(&p.Pos, value)
 }
 
-// Writes an int at the specified position in the packet.
-func (p *Packet) WriteIntAtPtr(value int, pos *int) *Packet {
+// Writes an int at the specified position.
+func (p *Packet) WriteIntPtr(pos *int, value int) *Packet {
 	p.ensureLength(*pos, 4)
 	binary.BigEndian.PutUint32(p.Data[*pos:], uint32(value))
 	*pos += 4
 	return p
 }
 
-// Writes an int at the specified position in the packet.
-func (p *Packet) WriteIntAt(value int, pos int) *Packet {
-	return p.WriteIntAtPtr(value, &pos)
+// Writes an int at the specified position.
+func (p *Packet) WriteIntAt(pos, value int) *Packet {
+	return p.WriteIntPtr(&pos, value)
 }
 
 // Writes an int at the current position in the packet.
 func (p *Packet) WriteInt(value int) *Packet {
-	return p.WriteIntAtPtr(value, &p.Pos)
+	return p.WriteIntPtr(&p.Pos, value)
 }
 
-// Writes a float at the specified position in the packet.
-func (p *Packet) WriteFloatAt(value float32, pos *int) *Packet {
+// Writes a float at the specified position.
+func (p *Packet) WriteFloatPtr(pos *int, value float32) *Packet {
 	if p.Client == Shockwave {
 		panic(fmt.Errorf("%w: attempt to write float on Shockwave session", errors.ErrUnsupported))
 	}
@@ -574,13 +574,18 @@ func (p *Packet) WriteFloatAt(value float32, pos *int) *Packet {
 	return p
 }
 
-// Writes a float at the current position in the packet.
-func (p *Packet) WriteFloat(value float32) *Packet {
-	return p.WriteFloatAt(value, &p.Pos)
+// Writes a float at the specified position.
+func (p *Packet) WriteFloatAt(pos int, value float32) *Packet {
+	return p.WriteFloatPtr(&pos, value)
 }
 
-// Writes a long at the specified position in the packet.
-func (p *Packet) WriteLongAt(value int64, pos *int) *Packet {
+// Writes a float at the current position in the packet.
+func (p *Packet) WriteFloat(value float32) *Packet {
+	return p.WriteFloatPtr(&p.Pos, value)
+}
+
+// Writes a long at the specified position.
+func (p *Packet) WriteLongPtr(pos *int, value int64) *Packet {
 	if p.Client == Shockwave {
 		panic(fmt.Errorf("%w: attempt to write long on Shockwave session", errors.ErrUnsupported))
 	}
@@ -590,25 +595,30 @@ func (p *Packet) WriteLongAt(value int64, pos *int) *Packet {
 	return p
 }
 
-// Writes a long at the current position in the packet.
-func (p *Packet) WriteLong(value int64) *Packet {
-	return p.WriteLongAt(value, &p.Pos)
+// Writes a long at the specified position.
+func (p *Packet) WriteLongAt(pos int, value int64) *Packet {
+	return p.WriteLongPtr(&pos, value)
 }
 
-// Writes a string at the specified position in the packet.
-func (p *Packet) WriteStringAt(value string, pos *int) *Packet {
+// Writes a long at the current position in the packet.
+func (p *Packet) WriteLong(value int64) *Packet {
+	return p.WriteLongPtr(&p.Pos, value)
+}
+
+// Writes a string at the specified position.
+func (p *Packet) WriteStringPtr(pos *int, value string) *Packet {
 	b := []byte(value)
 	size := len(b)
 
 	if p.Client == Shockwave {
 		if p.Header.Dir == In {
 			p.ensureLength(*pos, 1+size)
-			p.WriteBytesAtPtr(b, pos)
-			p.WriteByteAtPtr(2, pos)
+			p.WriteBytesPtr(pos, b)
+			p.WriteBytePtr(pos, 2)
 		} else {
 			p.ensureLength(*pos, 2+size)
 			p.WriteB64Ptr(pos, size)
-			p.WriteBytesAtPtr(b, pos)
+			p.WriteBytesPtr(pos, b)
 		}
 		return p
 	}
@@ -627,83 +637,106 @@ func (p *Packet) WriteStringAt(value string, pos *int) *Packet {
 	return p
 }
 
-// Writes a string at the current position in the packet.
-func (p *Packet) WriteString(value string) *Packet {
-	return p.WriteStringAt(value, &p.Pos)
+// Writes a string at the specified position.
+func (p *Packet) WriteStringAt(pos int, value string) *Packet {
+	return p.WriteStringPtr(&pos, value)
 }
 
-// Writes a Length at the specified position in the packet.
+// Writes a string at the current position in the packet.
+func (p *Packet) WriteString(value string) *Packet {
+	return p.WriteStringPtr(&p.Pos, value)
+}
+
+// Writes a Length at the specified position.
 // Length is an int on Flash sessions, int16 on Unity sessions.
-func (p *Packet) WriteLengthAt(length Length, pos *int) *Packet {
+func (p *Packet) WriteLengthPtr(pos *int, length Length) *Packet {
 	switch p.Client {
 	case Flash:
-		p.WriteIntAtPtr(int(length), pos)
+		p.WriteIntPtr(pos, int(length))
 	case Unity:
-		p.WriteShortAtPtr(int16(length), pos)
+		p.WriteShortPtr(pos, int16(length))
 	default:
 		panic("Cannot write length: unknown client type.")
 	}
 	return p
 }
 
-func (p *Packet) WriteLength(length Length) *Packet {
-	return p.WriteLengthAt(length, &p.Pos)
+// Writes a Length at the specified position.
+// Length is an int on Flash sessions, int16 on Unity sessions.
+func (p *Packet) WriteLengthAt(pos int, length Length) *Packet {
+	return p.WriteLengthPtr(&pos, length)
 }
 
-func (p *Packet) WriteIdAt(id Id, pos *int) *Packet {
+// Writes a Length at the current position in the packet.
+// Length is an int on Flash sessions, and an int16 on Unity sessions.
+func (p *Packet) WriteLength(length Length) *Packet {
+	return p.WriteLengthPtr(&p.Pos, length)
+}
+
+// Writes an Id at the specified position.
+// Id is an int on Flash sessions, and a long on Unity sessions.
+func (p *Packet) WriteIdPtr(pos *int, id Id) *Packet {
 	switch p.Client {
 	case Flash, Shockwave:
-		p.WriteIntAtPtr(int(id), pos)
+		p.WriteIntPtr(pos, int(id))
 	case Unity:
-		p.WriteLongAt(int64(id), pos)
+		p.WriteLongPtr(pos, int64(id))
 	default:
 		panic("Cannot write ID: unknown client type.")
 	}
 	return p
 }
 
+// Writes an Id at the specified position.
+// Id is an int on Flash sessions, and a long on Unity sessions.
+func (p *Packet) WriteIdAt(pos int, id Id) *Packet {
+	return p.WriteIdPtr(&pos, id)
+}
+
+// Writes an Id at the current position in the packet.
+// Id is an int on Flash sessions, and a long on Unity sessions.
 func (p *Packet) WriteId(id Id) *Packet {
-	return p.WriteIdAt(id, &p.Pos)
+	return p.WriteIdPtr(&p.Pos, id)
 }
 
 // Writes the specified values at the specified position.
-func (p *Packet) WriteAtPtr(pos *int, values ...any) *Packet {
+func (p *Packet) WritePtr(pos *int, values ...any) *Packet {
 	for _, value := range values {
 		switch v := value.(type) {
 		case []byte:
-			p.WriteBytesAtPtr(v, pos)
+			p.WriteBytesPtr(pos, v)
 		case bool:
-			p.WriteBoolAtPtr(v, pos)
+			p.WriteBoolPtr(pos, v)
 		case int8:
-			p.WriteByteAtPtr(byte(v), pos)
+			p.WriteBytePtr(pos, byte(v))
 		case uint8:
-			p.WriteByteAtPtr(v, pos)
+			p.WriteBytePtr(pos, v)
 		case int16:
-			p.WriteShortAtPtr(v, pos)
+			p.WriteShortPtr(pos, v)
 		case uint16:
-			p.WriteShortAtPtr(int16(v), pos)
+			p.WriteShortPtr(pos, int16(v))
 		case int:
-			p.WriteIntAtPtr(v, pos)
+			p.WriteIntPtr(pos, v)
 		case int32:
-			p.WriteIntAtPtr(int(v), pos)
+			p.WriteIntPtr(pos, int(v))
 		case uint32:
-			p.WriteIntAtPtr(int(v), pos)
+			p.WriteIntPtr(pos, int(v))
 		case float32:
-			p.WriteFloatAt(v, pos)
+			p.WriteFloatPtr(pos, v)
 		case float64:
-			p.WriteFloatAt(float32(v), pos)
+			p.WriteFloatPtr(pos, float32(v))
 		case int64:
-			p.WriteLongAt(v, pos)
+			p.WriteLongPtr(pos, v)
 		case uint64:
-			p.WriteLongAt(int64(v), pos)
+			p.WriteLongPtr(pos, int64(v))
 		case string:
-			p.WriteStringAt(v, pos)
+			p.WriteStringPtr(pos, v)
 		case Id:
-			p.WriteIdAt(v, pos)
+			p.WriteIdPtr(pos, v)
 		case Length:
-			p.WriteLengthAt(v, pos)
+			p.WriteLengthPtr(pos, v)
 		case FloatStr:
-			p.WriteStringAt(strconv.FormatFloat(float64(v), 'f', -1, 32), pos)
+			p.WriteStringPtr(pos, strconv.FormatFloat(float64(v), 'f', -1, 32))
 		default:
 			r := reflect.ValueOf(v)
 			if r.Kind() == reflect.Pointer {
@@ -713,7 +746,7 @@ func (p *Packet) WriteAtPtr(pos *int, values ...any) *Packet {
 			case reflect.Struct:
 				n := r.NumField()
 				for i := 0; i < n; i++ {
-					p.WriteAtPtr(pos, r.Field(i).Interface())
+					p.WritePtr(pos, r.Field(i).Interface())
 				}
 			default:
 				panic(fmt.Errorf("cannot write type %T to packet: (%+v)", v, v))
@@ -723,18 +756,20 @@ func (p *Packet) WriteAtPtr(pos *int, values ...any) *Packet {
 	return p
 }
 
+// Writes the specified values at the specified position.
 func (p *Packet) WriteAt(pos int, values ...any) *Packet {
-	return p.WriteAtPtr(&pos, values...)
+	return p.WritePtr(&pos, values...)
 }
 
 // Writes the specified values at the current position in the packet.
 func (p *Packet) Write(values ...any) *Packet {
-	return p.WriteAtPtr(&p.Pos, values...)
+	return p.WritePtr(&p.Pos, values...)
 }
 
 /* Replacement */
 
-func (p *Packet) ModifyStringAtPtr(transform func(string) string, pos *int) *Packet {
+// Modifies a string at the specified position.
+func (p *Packet) ModifyStringPtr(pos *int, transform func(string) string) *Packet {
 	start := *pos
 	pre := p.ReadStringPtr(pos)
 	end := *pos
@@ -754,37 +789,40 @@ func (p *Packet) ModifyStringAtPtr(transform func(string) string, pos *int) *Pac
 	if p.Client == Shockwave {
 		p.WriteB64Ptr(pos, postlen)
 	} else {
-		p.WriteShortAtPtr(int16(postlen), pos)
+		p.WriteShortPtr(pos, int16(postlen))
 	}
-	p.WriteBytesAtPtr(postbs, pos)
+	p.WriteBytesPtr(pos, postbs)
 	return p
 }
 
-func (p *Packet) ModifyStringAt(transform func(string) string, pos int) *Packet {
-	return p.ModifyStringAtPtr(transform, &pos)
+// Modifies a string at the specified position.
+func (p *Packet) ModifyStringAt(pos int, transform func(string) string) *Packet {
+	return p.ModifyStringPtr(&pos, transform)
 }
 
+// Modifies a string at the current position in the packet.
 func (p *Packet) ModifyString(transform func(string) string) *Packet {
-	return p.ModifyStringAtPtr(transform, &p.Pos)
+	return p.ModifyStringPtr(&p.Pos, transform)
 }
 
-func (p *Packet) ReplaceStringAtPtr(value string, pos *int) *Packet {
-	return p.ModifyStringAtPtr(func(_ string) string { return value }, pos)
+// Replaces a string at the specified position.
+func (p *Packet) ReplaceStringPtr(pos *int, value string) *Packet {
+	return p.ModifyStringPtr(pos, func(_ string) string { return value })
 }
 
-func (p *Packet) ReplaceStringAt(value string, pos int) *Packet {
-	return p.ReplaceStringAtPtr(value, &pos)
+// Replaces a string at the specified position.
+func (p *Packet) ReplaceStringAt(pos int, value string) *Packet {
+	return p.ReplaceStringPtr(&pos, value)
 }
 
+// Replaces a string at the current position in the packet.
 func (p *Packet) ReplaceString(value string) *Packet {
-	return p.ReplaceStringAtPtr(value, &p.Pos)
+	return p.ReplaceStringPtr(&p.Pos, value)
 }
 
 /* Skipping */
 
-// Skip 2 ints, a string, then an int:
-// p.Skip(0, 0, "", 0)
-
+// Skips the specified value types from the current position in the packet.
 func (p *Packet) Skip(types ...any) {
 	for _, v := range types {
 		switch v := v.(type) {
@@ -805,7 +843,7 @@ func (p *Packet) Skip(types ...any) {
 		case string:
 			p.ReadString()
 		default:
-			p.readReflectAt(&p.Pos, reflect.ValueOf(v))
+			p.readReflectPtr(&p.Pos, reflect.ValueOf(v))
 		}
 	}
 }
@@ -839,7 +877,7 @@ func (p *Packet) ReadB64At(pos int) int16 {
 	return p.ReadB64Ptr(&pos)
 }
 
-// Reads a 2-byte B64 value from the current position.
+// Reads a 2-byte B64 value from the current position in the packet.
 func (p *Packet) ReadB64() int16 {
 	return p.ReadB64Ptr(&p.Pos)
 }
@@ -858,7 +896,7 @@ func (p *Packet) WriteB64At(pos int, value int) *Packet {
 	return p
 }
 
-// Writes a 2-byte B64 value at the current position.
+// Writes a 2-byte B64 value at the current position in the packet.
 func (p *Packet) WriteB64(value int) *Packet {
 	p.WriteB64Ptr(&p.Pos, value)
 	return p
@@ -879,7 +917,7 @@ func (p *Packet) WriteVL64At(pos int, value int) *Packet {
 	return p
 }
 
-// Writes a VL64 at the current position.
+// Writes a VL64 at the current position in the packet.
 func (p *Packet) WriteVL64(value int) *Packet {
 	p.WriteVL64Ptr(&p.Pos, value)
 	return p
@@ -900,7 +938,7 @@ func (p *Packet) ReadVL64At(pos int) int {
 	return p.ReadVL64Ptr(&pos)
 }
 
-// Reads a VL64 from the current position.
+// Reads a VL64 from the current position in the packet.
 func (p *Packet) ReadVL64() int {
 	return p.ReadVL64Ptr(&p.Pos)
 }
