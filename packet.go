@@ -183,6 +183,17 @@ func (p *Packet) ReadBytes(length int) []byte {
 
 // Reads a short from the specified position and advances the position.
 func (p *Packet) ReadShortPtr(pos *int) (value int16) {
+	if p.Client == Shockwave {
+		switch p.Header.Dir {
+		case In:
+			return int16(p.ReadVL64Ptr(pos))
+		case Out:
+			return int16(p.ReadB64Ptr(pos))
+		default:
+			panic(fmt.Errorf("%w: unknown packet direction when reading short on shockwave session",
+				errors.ErrUnsupported))
+		}
+	}
 	p.assertCanRead(*pos, 2)
 	value = int16(binary.BigEndian.Uint16(p.Data[*pos:]))
 	*pos += 2
@@ -221,15 +232,24 @@ func (p *Packet) ReadInt() int {
 }
 
 // Reads a float from the specified position and advances the position.
-func (p *Packet) ReadFloatPtr(pos *int) (value float32) {
-	if p.Client == Shockwave {
-		panic(fmt.Errorf("%w: attempt to read float on Shockwave session", errors.ErrUnsupported))
+func (p *Packet) ReadFloatPtr(pos *int) float32 {
+	switch p.Client {
+	case Flash, Shockwave:
+		s := p.ReadStringPtr(pos)
+		value, err := strconv.ParseFloat(s, 32)
+		if err != nil {
+			panic(fmt.Errorf("failed to parse float: %w", err))
+		}
+		return float32(value)
+	case Unity:
+		p.assertCanRead(*pos, 4)
+		bits := binary.BigEndian.Uint32(p.Data[*pos:])
+		value := math.Float32frombits(bits)
+		*pos += 4
+		return value
+	default:
+		panic(fmt.Errorf("attempt to read float on unknown client: %s", p.Client))
 	}
-	p.assertCanRead(*pos, 4)
-	bits := binary.BigEndian.Uint32(p.Data[*pos:])
-	value = math.Float32frombits(bits)
-	*pos += 4
-	return
 }
 
 // Reads a float from the specified position.
@@ -245,7 +265,7 @@ func (p *Packet) ReadFloat() float32 {
 // Reads a long from the specified position and advances the position.
 func (p *Packet) ReadLongPtr(pos *int) (value int64) {
 	if p.Client == Shockwave {
-		panic(fmt.Errorf("%w: attempt to read long on Shockwave session", errors.ErrUnsupported))
+		panic(fmt.Errorf("%w: attempt to read long on client: %s", errors.ErrUnsupported, p.Client))
 	}
 	p.assertCanRead(*pos, 8)
 	x := binary.BigEndian.Uint64(p.Data[*pos:])
@@ -278,16 +298,10 @@ func (p *Packet) ReadStringPtr(pos *int) (value string) {
 		value = string(p.Data[*pos:i])
 		*pos = i + 1
 	} else {
-		p.assertCanRead(*pos, 2)
-		var length int
-		if p.Client == Shockwave {
-			length = int(p.ReadB64At(*pos))
-		} else {
-			length = int(binary.BigEndian.Uint16(p.Data[*pos:]))
-		}
+		length := int(p.ReadShortAt(*pos))
 		p.assertCanRead(*pos, 2+length)
 		value = string(p.Data[*pos+2 : *pos+2+length])
-		*pos += (2 + length)
+		*pos += 2 + length
 	}
 	return
 }
@@ -325,10 +339,10 @@ func (p *Packet) ReadLength() Length {
 // Reads an Id from the specified position and advances the position.
 func (p *Packet) ReadIdPtr(pos *int) (id Id) {
 	switch p.Client {
-	case Unity:
-		return Id(p.ReadLongPtr(pos))
 	case Flash, Shockwave:
 		return Id(p.ReadIntPtr(pos))
+	case Unity:
+		return Id(p.ReadLongPtr(pos))
 	default:
 		panic(fmt.Errorf("attempt to read Id on unknown client: %s", p.Client))
 	}
@@ -531,7 +545,15 @@ func (p *Packet) WriteBytes(value []byte) *Packet {
 // Writes a short at the specified position.
 func (p *Packet) WriteShortPtr(pos *int, value int16) *Packet {
 	if p.Client == Shockwave {
-		p.WriteB64Ptr(pos, int(value))
+		switch p.Header.Dir {
+		case In:
+			p.WriteVL64Ptr(pos, int(value))
+		case Out:
+			p.WriteB64Ptr(pos, int(value))
+		default:
+			panic(fmt.Errorf("%w: unknown packet direction when writing short on shockwave session",
+				errors.ErrUnsupported))
+		}
 		return p
 	}
 	p.ensureLength(*pos, 2)
@@ -574,13 +596,17 @@ func (p *Packet) WriteInt(value int) *Packet {
 
 // Writes a float at the specified position.
 func (p *Packet) WriteFloatPtr(pos *int, value float32) *Packet {
-	if p.Client == Shockwave {
-		panic(fmt.Errorf("%w: attempt to write float on Shockwave session", errors.ErrUnsupported))
+	switch p.Client {
+	case Flash, Shockwave:
+		p.WriteStringPtr(pos, strconv.FormatFloat(float64(value), 'f', -1, 32))
+	case Unity:
+		p.ensureLength(*pos, 4)
+		bits := math.Float32bits(value)
+		binary.BigEndian.PutUint32(p.Data[*pos:], bits)
+		*pos += 4
+	default:
+		panic(fmt.Errorf("attempt to write float on unknown client: %s", p.Client))
 	}
-	p.ensureLength(*pos, 4)
-	bits := math.Float32bits(value)
-	binary.BigEndian.PutUint32(p.Data[*pos:], bits)
-	*pos += 4
 	return p
 }
 
@@ -597,7 +623,7 @@ func (p *Packet) WriteFloat(value float32) *Packet {
 // Writes a long at the specified position.
 func (p *Packet) WriteLongPtr(pos *int, value int64) *Packet {
 	if p.Client == Shockwave {
-		panic(fmt.Errorf("%w: attempt to write long on Shockwave session", errors.ErrUnsupported))
+		panic(fmt.Errorf("%w: attempt to write long on client: %s", errors.ErrUnsupported, p.Client))
 	}
 	p.ensureLength(*pos, 8)
 	binary.BigEndian.PutUint64(p.Data[*pos:], uint64(value))
@@ -620,28 +646,20 @@ func (p *Packet) WriteStringPtr(pos *int, value string) *Packet {
 	b := []byte(value)
 	size := len(b)
 
-	if p.Client == Shockwave {
-		if p.Header.Dir == In {
-			p.ensureLength(*pos, 1+size)
-			p.WriteBytesPtr(pos, b)
-			p.WriteBytePtr(pos, 2)
-		} else {
-			p.ensureLength(*pos, 2+size)
-			p.WriteB64Ptr(pos, size)
-			p.WriteBytesPtr(pos, b)
-		}
+	if p.Client == Shockwave && p.Header.Dir == In {
+		p.ensureLength(*pos, 1+size)
+		copy(p.Data[*pos:], b)
+		p.Data[*pos+size] = 2
+		*pos += size + 1
 		return p
 	}
 
-	p.ensureLength(*pos, 2+size)
 	if size >= (1 << 16) {
 		panic(fmt.Errorf("string length cannot fit into a uint16"))
 	}
-	if p.Client == Shockwave {
-		p.WriteB64At(*pos, size)
-	} else {
-		binary.BigEndian.PutUint16(p.Data[*pos:], uint16(size))
-	}
+
+	p.ensureLength(*pos, 2+size)
+	p.WriteShortAt(*pos, int16(size))
 	copy(p.Data[*pos+2:], b)
 	*pos += (2 + size)
 	return p
@@ -663,7 +681,7 @@ func (p *Packet) WriteLengthPtr(pos *int, length Length) *Packet {
 	switch p.Client {
 	case Flash:
 		p.WriteIntPtr(pos, int(length))
-	case Unity:
+	case Unity, Shockwave:
 		p.WriteShortPtr(pos, int16(length))
 	default:
 		panic("Cannot write length: unknown client type.")
@@ -684,7 +702,7 @@ func (p *Packet) WriteLength(length Length) *Packet {
 }
 
 // Writes an Id at the specified position.
-// Id is an int on Flash sessions, and a long on Unity sessions.
+// Id is an int on Flash and Shockwave sessions, and a long on Unity sessions.
 func (p *Packet) WriteIdPtr(pos *int, id Id) *Packet {
 	switch p.Client {
 	case Flash, Shockwave:
@@ -848,7 +866,7 @@ func (p *Packet) Skip(types ...any) {
 			p.ReadInt()
 		case int64, uint64:
 			p.ReadLong()
-		case float32:
+		case float32, float64:
 			p.ReadFloat()
 		case string:
 			p.ReadString()
