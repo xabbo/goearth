@@ -348,10 +348,21 @@ func wrapPacket(packet *Packet) *Packet {
 	} else {
 		pkt.WriteByte(0)
 	}
-	pkt.WriteInt(6 + packet.Length())
-	pkt.WriteInt(2 + packet.Length())
-	pkt.WriteShort(int16(packet.Header.Value))
+	if packet.Client == Shockwave {
+		pkt.WriteInt(2 + packet.Length())
+		pkt.WriteB64(int(packet.Header.Value))
+	} else {
+		pkt.WriteInt(6 + packet.Length())
+		pkt.WriteInt(2 + packet.Length())
+		pkt.WriteShort(int16(packet.Header.Value))
+	}
 	pkt.WriteBytes(packet.Data)
+	if packet.Header.Dir == Out {
+		pkt.WriteInt(2)
+	} else {
+		pkt.WriteInt(1)
+	}
+	fmt.Println(string(pkt.Data))
 	return pkt
 }
 
@@ -473,8 +484,11 @@ func dispatchIntercept(handlers []InterceptHandler, index int, keep *int,
 }
 
 func (ext *Ext) handlePacketIntercept(p *Packet) {
-	tabs := make([]int, 0, 3)
-	for i := 4; i < len(p.Data) && len(tabs) < 3; i++ {
+	// length of intercept arguments
+	length := p.ReadInt()
+
+	tabs := make([]int, 0)
+	for i := 4; i < min(length+4, len(p.Data)) && len(tabs) < 3; i++ {
 		if p.Data[i] == 0x09 {
 			tabs = append(tabs, i)
 		}
@@ -490,8 +504,21 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	}
 	outgoing := p.Data[tabs[1]+3] == 'S'
 	modified := p.Data[tabs[2]+1] == '1'
-	headerValue := binary.BigEndian.Uint16(p.Data[tabs[2]+6:])
-	packetData := p.Data[tabs[2]+8:]
+
+	// Packet offset (starting at the header)
+	packetOffset := tabs[2] + 6
+
+	var headerValue uint16
+	if ext.client.Type == Shockwave {
+		packetOffset = tabs[2] + 2
+		headerValue = uint16(p.ReadB64At(packetOffset))
+	} else {
+		headerValue = binary.BigEndian.Uint16(p.Data[packetOffset:])
+	}
+
+	tailOffset := 4 + length
+	packetData := p.Data[packetOffset+2 : tailOffset]
+	tail := p.Data[tailOffset:]
 	preLen := len(packetData)
 
 	dir := In
@@ -525,12 +552,17 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	diff := pktModified.Length() - preLen
 	newLen := p.Length() + diff
 	p.Header.Value = gOutManipulatedPacket
-	p.WriteIntAt(newLen-4, 0)
+	p.WriteIntAt(newLen-4-len(tail), 0)
 	p.WriteByteAt(zeroOneChr(intercept.block), 4)
 	p.WriteByteAt(zeroOneChr(modified), tabs[2]+1)
-	p.WriteIntAt(2+pktModified.Length(), tabs[2]+2)
-	p.WriteShortAt(int16(pktModified.Header.Value), tabs[2]+6)
-	p.WriteBytesAt(pktModified.Data, tabs[2]+8)
+	if ext.client.Type != Shockwave {
+		p.WriteIntAt(2+pktModified.Length(), tabs[2]+2)
+		p.WriteShortAt(int16(pktModified.Header.Value), packetOffset)
+	} else {
+		p.WriteB64At(packetOffset, int(pktModified.Header.Value))
+	}
+	p.WriteBytesAt(pktModified.Data, packetOffset+2)
+	p.WriteBytesAt(tail, tailOffset+diff)
 	p.Data = p.Data[:newLen]
 	ext.sendRaw(p)
 }

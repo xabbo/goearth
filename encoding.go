@@ -13,6 +13,10 @@ func vl64len(v int) int {
 	return (bits.Len32(uint32(v)) + 9) / 6
 }
 
+func vl64lenEncoded(b byte) int {
+	return int(b >> 3 & 7)
+}
+
 func vl64encode(b []byte, v int) {
 	abs := v
 	if abs < 0 {
@@ -32,7 +36,7 @@ func vl64encode(b []byte, v int) {
 func vl64decode(b []byte) int {
 	value := int(b[0] & 3)
 
-	n := int(b[0]>>3) & 7
+	n := vl64lenEncoded(b[0])
 	for i := 1; i < n; i++ {
 		value |= int(b[i]&0x3f) << (2 + 6*(i-1))
 	}

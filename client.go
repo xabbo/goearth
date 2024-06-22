@@ -7,9 +7,11 @@ type ClientType string
 
 const (
 	// Represents the Flash client.
-	FLASH ClientType = "FLASH"
+	Flash ClientType = "FLASH"
 	// Represents the Unity client.
-	UNITY ClientType = "UNITY"
+	Unity ClientType = "UNITY"
+	// Represents the Shockwave client.
+	Shockwave ClientType = "SHOCKWAVE"
 )
 
 // Defines information about a game client.
