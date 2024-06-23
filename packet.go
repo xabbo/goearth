@@ -292,11 +292,12 @@ func (p *Packet) ReadStringPtr(pos *int) (value string) {
 		for i < len(p.Data) && p.Data[i] != 2 {
 			i++
 		}
-		if i >= len(p.Data) {
-			panic(fmt.Errorf("unterminated string"))
-		}
+		// some packets don't have a terminator byte for the final string..
+		// if i >= len(p.Data) {
+		// 	panic(fmt.Errorf("unterminated string"))
+		// }
 		value = string(p.Data[*pos:i])
-		*pos = i + 1
+		*pos = min(len(p.Data), i+1)
 	} else {
 		length := int(p.ReadShortAt(*pos))
 		p.assertCanRead(*pos, 2+length)
