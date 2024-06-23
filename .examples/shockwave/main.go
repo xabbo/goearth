@@ -2,10 +2,13 @@ package main
 
 import (
 	"log"
-	"strings"
+	"strconv"
 
 	g "xabbo.b7c.io/goearth"
+	"xabbo.b7c.io/goearth/shockwave/in"
 )
+
+// A simple chat log extension for the shockwave client.
 
 var ext = g.NewExt(g.ExtInfo{
 	Title:       "Go Earth",
@@ -14,22 +17,75 @@ var ext = g.NewExt(g.ExtInfo{
 	Author:      "b7",
 })
 
+var (
+	users            = map[int]*User{}
+	usersPacketCount = 0
+)
+
+type User struct {
+	Index      int
+	Name       string
+	Figure     string
+	Gender     string
+	Custom     string
+	X, Y       int
+	Z          float64
+	PoolFigure string
+	BadgeCode  string
+	Type       int
+}
+
 func main() {
-	ext.Initialized(func(e *g.InitArgs) { log.Printf("Initialized (connected=%t)", e.Connected) })
+	ext.Initialized(func(e *g.InitArgs) { log.Printf("Extension initialized") })
 	ext.Connected(func(e *g.ConnectArgs) { log.Printf("Connected (%s)", e.Host) })
 	ext.Disconnected(func() { log.Println("Disconnected") })
-	// intercept arbitrary message names with InterceptIn/Out
-	ext.InterceptIn("Chat", "Chat_2", "Chat_3").With(handleChat)
+	ext.Intercept(in.OPC_OK).With(handleEnterRoom)
+	ext.Intercept(in.USERS).With(handleUsers)
+	ext.Intercept(in.LOGOUT).With(handleRemoveUser)
+	ext.Intercept(in.CHAT, in.CHAT_2, in.CHAT_3).With(handleChat)
 	ext.Run()
 }
 
-// wave when someone says "hello"
+func handleEnterRoom(e *g.InterceptArgs) {
+	usersPacketCount = 0
+	clear(users)
+}
+
+func handleUsers(e *g.InterceptArgs) {
+	// Observations:
+	// The first USERS packet sent upon entering the room (after OPC_OK)
+	// is the list of users that are already in the room.
+	// The second USERS packet contains a single user, yourself.
+	// The following USERS packets indicate someone entering the room.
+	usersPacketCount++
+	for range e.Packet.ReadInt() {
+		var user User
+		e.Packet.Read(&user)
+		if user.Type == 1 {
+			if usersPacketCount >= 3 {
+				log.Printf("* %s entered the room", user.Name)
+			}
+			users[user.Index] = &user
+		}
+	}
+}
+
 func handleChat(e *g.InterceptArgs) {
-	e.Packet.Skip(0) // skip an integer
+	index := e.Packet.ReadInt()
 	msg := e.Packet.ReadString()
-	if strings.Contains(strings.ToLower(msg), "hello") {
-		// send packets with arbitrary message names,
-		// not defined in `in`/`out` packages
-		ext.Send(g.Out.Id("Wave"))
+	if user, ok := users[index]; ok {
+		log.Printf("%s: %s", user.Name, msg)
+	}
+}
+
+func handleRemoveUser(e *g.InterceptArgs) {
+	s := e.Packet.ReadString()
+	index, err := strconv.Atoi(s)
+	if err != nil {
+		return
+	}
+	if user, ok := users[index]; ok {
+		log.Printf("* %s left the room.", user.Name)
+		delete(users, index)
 	}
 }
