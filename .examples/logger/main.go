@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
@@ -58,5 +59,6 @@ func handleIntercept(e *g.InterceptArgs) {
 		indicator = ">>"
 		color = CYAN
 	}
-	log.Printf("%s%s %6d %s %s%s\n", color, indicator, e.Sequence(), e.Packet.Header.Name, bytes, RESET)
+	log.Printf("%s%s %6d %s %s%s\n%s",
+		color, indicator, e.Sequence(), e.Packet.Header.Name, bytes, RESET, hex.Dump(e.Packet.Data))
 }
