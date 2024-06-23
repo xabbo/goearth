@@ -4,4 +4,4 @@ These are a few examples that demonstrate how to create your own extension with 
 
 ## How to run
 
-Change into the example's directory and run `go run main.go`.
+Change into the example's directory and run `go run .`.
