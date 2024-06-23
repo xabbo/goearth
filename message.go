@@ -4,6 +4,7 @@ import "strings"
 
 // Generate message identifiers.
 //go:generate go run .generate/messages/main.go --dir . --variant flash-windows
+//go:generate go run .generate/messages/main.go --dir shockwave --variant shockwave-windows
 
 // Defines a message direction.
 type Direction int
