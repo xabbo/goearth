@@ -9,7 +9,7 @@ func (t *EntityType) Parse(p *g.Packet, pos *int) {
 }
 
 const (
-	USER EntityType = iota+1
+	USER EntityType = iota + 1
 	PET
 	PUBLIC_BOT
 	PRIVATE_BOT
@@ -66,7 +66,7 @@ type PrivateBot struct {
 
 type Entity struct {
 	EntityBase
-	Extra  any
+	Extra any
 }
 
 func (e *Entity) Parse(p *g.Packet, pos *int) {
