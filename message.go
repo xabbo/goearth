@@ -3,7 +3,7 @@ package goearth
 import "strings"
 
 // Generate message identifiers.
-//go:generate go run .generate/messages/main.go
+//go:generate go run .generate/messages/main.go --dir . --variant flash-windows
 
 // Defines a message direction.
 type Direction int

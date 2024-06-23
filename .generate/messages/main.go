@@ -3,30 +3,55 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/exp/slices"
 )
 
-type Dir string
+type Dir int
 
 const (
-	Out Dir = "Out"
-	In  Dir = "In"
+	In Dir = iota
+	Out
 )
 
+func (dir Dir) ShortName() string {
+	switch dir {
+	case In:
+		return "in"
+	case Out:
+		return "out"
+	default:
+		return "unknown"
+	}
+}
+
+func (dir Dir) Name() string {
+	switch dir {
+	case In:
+		return "incoming"
+	case Out:
+		return "outgoing"
+	default:
+		return "unknown"
+	}
+}
+
 type Release struct {
-	Id      int     `json:"id"`
-	Variant int     `json:"variant"`
-	Version string  `json:"version"`
-	Size    int     `json:"size"`
-	Packets Packets `json:"packets"`
+	Id          int     `json:"id"`
+	Variant     int     `json:"variant"`
+	VariantPath string  `json:"variantPath"`
+	Version     string  `json:"version"`
+	Size        int     `json:"size"`
+	Packets     Packets `json:"packets"`
 }
 
 type Packets struct {
@@ -51,25 +76,49 @@ type Message struct {
 	Confident bool   `json:"confident"`
 }
 
+var opts struct {
+	dir     string
+	variant string
+}
+
 func main() {
+	flag.StringVar(&opts.dir, "dir", ".", "The output directory.")
+	flag.StringVar(&opts.variant, "variant", "", "The client variant.")
+	flag.Parse()
+
+	opts.variant = strings.ToLower(opts.variant)
+
 	log.SetPrefix("messages: ")
-	err := run()
-	if err != nil {
+	if err := run(); err != nil {
 		log.Printf("Error: %s", err)
+		os.Exit(1)
 	}
 }
 
 func run() (err error) {
-	log.Printf("Generating message variables")
+	log.Println("Generating message variables")
 
-	dir, err := os.Getwd()
+	wd, err := os.Getwd()
 	if err != nil {
 		return
 	}
-	log.Printf("Current directory: %s", dir)
+	log.Printf("Current directory: %s", wd)
 
-	log.Printf("Fetching latest client release...")
-	res, err := http.Get("https://api.sulek.dev/releases?variant=flash-windows")
+	inDir := filepath.Join(opts.dir, "in")
+	err = os.MkdirAll(inDir, 0755)
+	if err != nil {
+		return
+	}
+
+	outDir := filepath.Join(opts.dir, "out")
+	err = os.MkdirAll(outDir, 0755)
+	if err != nil {
+		return
+	}
+
+	log.Println("Fetching latest client release...")
+
+	res, err := http.Get(fmt.Sprintf("https://api.sulek.dev/releases?variant=%s", url.QueryEscape(opts.variant)))
 	if err != nil {
 		return
 	}
@@ -78,13 +127,8 @@ func run() (err error) {
 		return fmt.Errorf("server responded %s", res.Status)
 	}
 
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		return
-	}
-
 	releases := []Release{}
-	err = json.Unmarshal(data, &releases)
+	err = json.NewDecoder(res.Body).Decode(&releases)
 	if err != nil {
 		return
 	}
@@ -94,10 +138,10 @@ func run() (err error) {
 	}
 
 	release := releases[0]
-	log.Printf("Using client version %q", release.Version)
+	log.Printf("Using client version: %s", release.Version)
 
 	log.Printf("Fetching client messages...")
-	res, err = http.Get("https://api.sulek.dev/releases/" + release.Version + "/messages")
+	res, err = http.Get("https://api.sulek.dev/releases/" + opts.variant + "/" + release.Version + "/messages")
 	if err != nil {
 		return
 	}
@@ -105,76 +149,70 @@ func run() (err error) {
 		return fmt.Errorf("server responded %s", res.Status)
 	}
 
-	data, err = io.ReadAll(res.Body)
-	if err != nil {
-		return
-	}
-
 	container := struct {
 		Messages Messages `json:"messages"`
 	}{}
-	err = json.Unmarshal(data, &container)
+	err = json.NewDecoder(res.Body).Decode(&container)
 	if err != nil {
 		return
 	}
 
 	messages := container.Messages
-	for i, msg := range messages.Incoming {
-		messages.Incoming[i].Name = cleanMessageName(In, msg.Name)
-	}
-	for i, msg := range messages.Outgoing {
-		messages.Outgoing[i].Name = cleanMessageName(Out, msg.Name)
-	}
-	slices.SortFunc(messages.Incoming, sortMessage)
-	slices.SortFunc(messages.Outgoing, sortMessage)
 
-	bufferIncoming, err := generateMessagesSrc(In, release, messages.Incoming)
-	if err != nil {
-		return
+	if !strings.HasPrefix(opts.variant, "shockwave") {
+		for i, msg := range messages.Incoming {
+			messages.Incoming[i].Name = cleanMessageName(In, msg.Name)
+		}
+		for i, msg := range messages.Outgoing {
+			messages.Outgoing[i].Name = cleanMessageName(Out, msg.Name)
+		}
 	}
+	slices.SortFunc(messages.Incoming, compareMessageName)
+	slices.SortFunc(messages.Outgoing, compareMessageName)
 
-	bufferOutgoing, err := generateMessagesSrc(Out, release, messages.Outgoing)
+	err = writeMessagesSrc(inDir, In, release, messages.Incoming)
 	if err != nil {
 		return
 	}
 
-	err = os.WriteFile("in/in.go", bufferIncoming, 0755)
+	err = writeMessagesSrc(outDir, Out, release, messages.Outgoing)
 	if err != nil {
 		return
 	}
-	log.Printf("Wrote %d incoming messages", len(messages.Incoming))
-	err = formatSrc("in/in.go")
-	if err != nil {
-		return
-	}
-
-	err = os.WriteFile("out/out.go", bufferOutgoing, 0755)
-	if err != nil {
-		return
-	}
-	err = formatSrc("out/out.go")
-	if err != nil {
-		return
-	}
-	log.Printf("Wrote %d outgoing messages", len(messages.Outgoing))
 
 	return
 }
 
-func generateMessagesSrc(dir Dir, release Release, messages []Message) (buffer []byte, err error) {
-	b := bytes.NewBuffer(nil)
+func writeMessagesSrc(outputDir string, direction Dir, release Release, messages []Message) (err error) {
+	buf, err := generateMessagesSrc(direction, release, messages)
+	if err != nil {
+		return
+	}
 
-	fmt.Fprintf(b, "// Generated for release %s (source: sulek.dev)\n\n", release.Version)
-	fmt.Fprintf(b, "package %s\n\n", strings.ToLower(string(dir)))
+	outPath := filepath.Join(outputDir, "messages.go")
+	err = os.WriteFile(outPath, buf, 0755)
+	if err != nil {
+		return
+	}
+
+	log.Printf("Wrote %d %s messages", len(messages), direction.Name())
+	err = formatSrc(outPath)
+	return
+}
+
+func generateMessagesSrc(dir Dir, release Release, messages []Message) (buffer []byte, err error) {
+	b := &bytes.Buffer{}
+
+	fmt.Fprintf(b, "// Generated for %s release %s (source: sulek.dev)\n\n", release.VariantPath, release.Version)
+	fmt.Fprintf(b, "package %s\n\n", dir.ShortName())
 	fmt.Fprint(b, "import g \"xabbo.b7c.io/goearth\"\n\n")
 
-	fmt.Fprint(b, "func id(name string) g.Identifier {\n")
-	fmt.Fprintf(b, "\treturn g.Identifier{Dir: g.%s, Name: name}\n", dir)
-	fmt.Fprint(b, "}\n\n")
+	dirShortName := dir.ShortName()
+	dirShortNameTitle := strings.ToUpper(dirShortName[:1]) + dirShortName[1:]
 
 	fmt.Fprint(b, "var (\n")
 	for _, message := range messages {
-		fmt.Fprintf(b, "\t%[1]s = id(%[1]q)\n", message.Name)
+		fmt.Fprintf(b, "\t%[1]s = g.%s.Id(%[1]q)\n", message.Name, dirShortNameTitle)
 	}
 	fmt.Fprint(b, ")\n")
 
@@ -205,7 +243,7 @@ func cleanMessageName(dir Dir, name string) (result string) {
 	return
 }
 
-func sortMessage(a, b Message) int {
+func compareMessageName(a, b Message) int {
 	if a.Name < b.Name {
 		return -1
 	}
