@@ -956,6 +956,9 @@ func (p *Packet) WriteVL64(value int) *Packet {
 func (p *Packet) ReadVL64Ptr(pos *int) int {
 	p.assertCanRead(*pos, 1)
 	n := encoding.VL64DecodeLen(p.Data[*pos])
+	if n <= 0 || n > 6 {
+		panic(fmt.Errorf("invalid byte length when decoding VL64: %d", n))
+	}
 	p.assertCanRead(*pos, n)
 	value := encoding.VL64Decode(p.Data[*pos : *pos+n])
 	*pos += n
