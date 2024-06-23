@@ -6,15 +6,16 @@ import (
 
 // Shockwave encoding
 
-// VL64Len returns the number of bytes required to represent a variable-length base64-encoded integer.
-func VL64Len(v int) int {
+// VL64EncodeLen returns the number of bytes required to represent a variable-length base64-encoded integer.
+func VL64EncodeLen(v int) int {
 	if v < 0 {
 		v *= -1
 	}
 	return (bits.Len32(uint32(v)) + 9) / 6
 }
 
-func VL64EncodedLen(b byte) int {
+// VL64DecodeLen returns the byte length of a variable-length base64-encoded integer, given (and including) the first byte.
+func VL64DecodeLen(b byte) int {
 	return int(b >> 3 & 7)
 }
 
@@ -24,7 +25,7 @@ func VL64Encode(b []byte, v int) {
 	if abs < 0 {
 		abs *= -1
 	}
-	n := VL64Len(v)
+	n := VL64EncodeLen(v)
 
 	b[0] = 64 | (byte(n)&7)<<3 | byte(abs&3)
 	if v < 0 {
@@ -39,7 +40,7 @@ func VL64Encode(b []byte, v int) {
 func VL64Decode(b []byte) int {
 	value := int(b[0] & 3)
 
-	n := VL64EncodedLen(b[0])
+	n := VL64DecodeLen(b[0])
 	for i := 1; i < n; i++ {
 		value |= int(b[i]&0x3f) << (2 + 6*(i-1))
 	}

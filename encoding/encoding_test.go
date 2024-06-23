@@ -64,7 +64,7 @@ var b64_tests = map[int]string{
 
 func TestVL64len(t *testing.T) {
 	for value, expected := range vl64len_tests {
-		actual := VL64Len(value)
+		actual := VL64EncodeLen(value)
 		if actual != expected {
 			t.Fatalf("vl64len(%d) was %d, expected %d", value, actual, expected)
 		}
@@ -73,7 +73,7 @@ func TestVL64len(t *testing.T) {
 
 func TestVL64encode(t *testing.T) {
 	for value, expected := range vl64_tests {
-		length := VL64Len(value)
+		length := VL64EncodeLen(value)
 		buf := make([]byte, length)
 		VL64Encode(buf, value)
 		actual := string(buf)

@@ -120,7 +120,7 @@ func (p *Packet) ReadBoolPtr(pos *int) (value bool) {
 	p.assertCanRead(*pos, 1)
 	var i int
 	if p.Client == Shockwave {
-		if encoding.VL64EncodedLen(p.Data[*pos]) != 1 {
+		if encoding.VL64DecodeLen(p.Data[*pos]) != 1 {
 			panic(fmt.Errorf("attempt to read boolean when VL64 length > 1"))
 		}
 		i = encoding.VL64Decode(p.Data[*pos : *pos+1])
@@ -932,7 +932,7 @@ func (p *Packet) WriteB64(value int) *Packet {
 
 // Writes a VL64 at the specified position.
 func (p *Packet) WriteVL64Ptr(pos *int, value int) *Packet {
-	n := encoding.VL64Len(value)
+	n := encoding.VL64EncodeLen(value)
 	p.ensureLength(*pos, n)
 	encoding.VL64Encode(p.Data[*pos:], value)
 	*pos += n
@@ -954,7 +954,7 @@ func (p *Packet) WriteVL64(value int) *Packet {
 // Reads a VL64 from the specified position.
 func (p *Packet) ReadVL64Ptr(pos *int) int {
 	p.assertCanRead(*pos, 1)
-	n := encoding.VL64EncodedLen(p.Data[*pos])
+	n := encoding.VL64DecodeLen(p.Data[*pos])
 	p.assertCanRead(*pos, n)
 	value := encoding.VL64Decode(p.Data[*pos : *pos+n])
 	*pos += n
