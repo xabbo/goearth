@@ -1,4 +1,4 @@
 # Logger
 
 A basic packet logger that prints out message names.\
-Run with `go run . -b` to print out bytes.
+Use `-filter` to filter packet names, e.g. "go run . -filter trade"

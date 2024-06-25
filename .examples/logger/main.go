@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"regexp"
 
 	g "xabbo.b7c.io/goearth"
 )
@@ -22,14 +23,22 @@ var ext = g.NewExt(g.ExtInfo{
 	Author:      "b7",
 })
 
-var logBytes bool
+var opts struct {
+	filter string
+}
+
+var filterRegex *regexp.Regexp
 
 func init() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
 
 	g.InitFlags()
-	flag.BoolVar(&logBytes, "b", false, "Print out packet bytes.")
+	flag.StringVar(&opts.filter, "filter", "", "Regex to filter packet names.")
 	flag.Parse()
+
+	if opts.filter != "" {
+		filterRegex = regexp.MustCompile("(?i)" + opts.filter)
+	}
 }
 
 func main() {
@@ -46,11 +55,12 @@ func main() {
 }
 
 func handleIntercept(e *g.InterceptArgs) {
+	if filterRegex != nil && !filterRegex.MatchString(e.Packet.Header.Name) {
+		return
+	}
+
 	var indicator, color string
 	bytes := fmt.Sprintf("(%d bytes)", e.Packet.Length())
-	if logBytes {
-		bytes = fmt.Sprintf("[% x]", e.Packet.Data)
-	}
 	switch e.Dir() {
 	case g.In:
 		indicator = "<<"
