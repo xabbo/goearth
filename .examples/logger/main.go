@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	g "xabbo.b7c.io/goearth"
 )
@@ -26,6 +27,7 @@ var logBytes bool
 
 func init() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
+	log.SetOutput(os.Stdout)
 
 	g.InitFlags()
 	flag.BoolVar(&logBytes, "b", false, "Print out packet bytes.")
@@ -59,6 +61,6 @@ func handleIntercept(e *g.InterceptArgs) {
 		indicator = ">>"
 		color = CYAN
 	}
-	log.Printf("%s%s %6d %s %s%s\n%s",
-		color, indicator, e.Sequence(), e.Packet.Header.Name, bytes, RESET, hex.Dump(e.Packet.Data))
+	log.Printf("%s%5d %s [%d] %s %s%s\n%s",
+		color, e.Sequence(), indicator, e.Packet.Header.Value, e.Packet.Header.Name, bytes, RESET, hex.Dump(e.Packet.Data))
 }
