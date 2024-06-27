@@ -732,6 +732,8 @@ func (p *Packet) WriteId(id Id) *Packet {
 func (p *Packet) WritePtr(pos *int, values ...any) *Packet {
 	for _, value := range values {
 		switch v := value.(type) {
+		case Composable:
+			v.Compose(p)
 		case []byte:
 			p.WriteBytesPtr(pos, v)
 		case bool:
