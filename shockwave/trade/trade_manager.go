@@ -62,30 +62,15 @@ func (mgr *Manager) handleTradeItems(e *g.InterceptArgs) {
 
 	args := &Args{Offers: offers}
 
-	/*
-		There is no trade open packet, and we want to detect whether a trade was opened.
-		To detect this, we keep track of whether a trade is open or not ourselves.
-
-		Currently, when you close a trade, the server resends a TRADE_ITEMS packet,
-		opening a new trade where you cannot offer any items.
-
-		Closing that trade does not cause the server to respond with a TRADE_CLOSE packet.
-
-		This means that if we then trade someone else, we will receive
-		consecutive TRADE_ITEMS packets with different traders.
-
-		To detect if a trade was opened with someone else, we are checking
-		whether the trader's names have changed.
-	*/
-
 	if mgr.Trading {
-		for i := range 2 {
-			if mgr.Offers[i].Name != offers[i].Name {
-				args.Opened = true
-				dbg.Printf("detected trade open due to trader name change (%s -> %s)",
-					mgr.Offers[i].Name, offers[i].Name)
-				break
-			}
+		/*
+			There is no trade open packet, and we want to detect whether a trade was opened.
+			To do this, we check if the trade update is empty. This only happens once,
+			and since we cannot remove items, we assume that a new trade has opened.
+		*/
+		args.Opened = len(mgr.Offers[0].Items) == 0 && len(mgr.Offers[1].Items) == 0
+		if args.Opened {
+			dbg.Printf("detected trade open (empty trade update)")
 		}
 	} else {
 		mgr.Trading = true
@@ -95,7 +80,7 @@ func (mgr *Manager) handleTradeItems(e *g.InterceptArgs) {
 	mgr.Offers = offers
 	mgr.updated.Dispatch(args)
 
-	dbg.Println("trade updated")
+	dbg.Printf("trade updated (opened: %t)", args.Opened)
 	// TODO: check if this loop gets optimized away when !debug.Enabled
 	for _, offer := range offers {
 		dbg.Printf("%s: %d item(s) (accepted: %t)", offer.Name, len(offer.Items), offer.Accepted)
