@@ -24,7 +24,7 @@ func NewLogger(prefix string) *Logger {
 }
 
 func (dbg *Logger) Output(s string) {
-	if !debugging {
+	if !Enabled {
 		return
 	}
 

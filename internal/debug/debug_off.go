@@ -2,4 +2,4 @@
 
 package debug
 
-const debugging = false
+const Enabled = false
