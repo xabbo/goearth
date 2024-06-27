@@ -109,8 +109,8 @@ func (mgr *Manager) handleTradeAccept(e *g.InterceptArgs) {
 
 	s := e.Packet.ReadString()
 	fields := strings.SplitN(s, "/", 2)
-	if len(s) != 2 {
-		dbg.Printf("WARNING: fields length != 2: %q", s)
+	if len(fields) != 2 {
+		dbg.Printf("WARNING: fields length != 2: %q (%v)", s, fields)
 		return
 	}
 
