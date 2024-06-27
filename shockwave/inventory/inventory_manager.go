@@ -44,6 +44,11 @@ func (mgr *Manager) handleStripInfo2(e *g.InterceptArgs) {
 
 	clear(mgr.items)
 	for _, item := range inv.Items {
+		if debug.Enabled {
+			if _, exists := mgr.items[item.Id]; exists {
+				dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
+			}
+		}
 		mgr.items[item.ItemId] = item
 	}
 	mgr.updated.Dispatch()
@@ -56,7 +61,8 @@ func (mgr *Manager) handleRemoveStripItem(e *g.InterceptArgs) {
 	if item, ok := mgr.items[itemId]; ok {
 		delete(mgr.items, itemId)
 		mgr.itemRemoved.Dispatch(&ItemArgs{item})
+		dbg.Printf("removed item (ID: %d)", itemId)
 	} else {
-		dbg.Printf("failed to remove item (id: %d)", itemId)
+		dbg.Printf("failed to remove item (ID: %d)", itemId)
 	}
 }

@@ -96,6 +96,7 @@ func (mgr *Manager) handleTradeItems(e *g.InterceptArgs) {
 	mgr.updated.Dispatch(args)
 
 	dbg.Println("trade updated")
+	// TODO: check if this loop gets optimized away when !debug.Enabled
 	for _, offer := range offers {
 		dbg.Printf("%s: %d item(s) (accepted: %t)", offer.Name, len(offer.Items), offer.Accepted)
 	}
@@ -106,13 +107,15 @@ func (mgr *Manager) handleTradeAccept(e *g.InterceptArgs) {
 		return
 	}
 
-	s := strings.SplitN(e.Packet.ReadString(), "/", 2)
+	s := e.Packet.ReadString()
+	fields := strings.SplitN(s, "/", 2)
 	if len(s) != 2 {
+		dbg.Printf("WARNING: fields length != 2: %q", s)
 		return
 	}
 
-	name := s[0]
-	accepted := s[1] == "true"
+	name := fields[0]
+	accepted := fields[1] == "true"
 
 	var offer *Offer
 	for i := range 2 {
@@ -125,6 +128,8 @@ func (mgr *Manager) handleTradeAccept(e *g.InterceptArgs) {
 	if offer != nil {
 		offer.Accepted = accepted
 		mgr.accepted.Dispatch(&AcceptArgs{name, accepted})
+	} else {
+		dbg.Printf("WARNING: failed to find offer for %q", name)
 	}
 }
 
@@ -134,6 +139,7 @@ func (mgr *Manager) handleTradeCompleted2(e *g.InterceptArgs) {
 	}
 
 	mgr.completed.Dispatch(&Args{Offers: mgr.Offers})
+	dbg.Printf("trade completed")
 }
 
 func (mgr *Manager) handleTradeClose(e *g.InterceptArgs) {
@@ -145,4 +151,5 @@ func (mgr *Manager) handleTradeClose(e *g.InterceptArgs) {
 	mgr.Trading = false
 	mgr.Offers = Offers{}
 	mgr.closed.Dispatch(&Args{Offers: offers})
+	dbg.Printf("trade closed")
 }

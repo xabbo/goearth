@@ -1,7 +1,6 @@
 package room
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 
@@ -95,7 +94,7 @@ func (mgr *Manager) handleFlatInfo(e *g.InterceptArgs) {
 
 	mgr.infoCache[info.Id] = info
 
-	dbg.Printf("cached room info (id: %d)", info.Id)
+	dbg.Printf("cached room info (ID: %d)", info.Id)
 }
 
 func (mgr *Manager) handleOpcOk(e *g.InterceptArgs) {
@@ -103,6 +102,10 @@ func (mgr *Manager) handleOpcOk(e *g.InterceptArgs) {
 }
 
 func (mgr *Manager) handleRoomReady(e *g.InterceptArgs) {
+	if mgr.IsInRoom {
+		dbg.Printf("WARNING: already in room")
+	}
+
 	s := e.Packet.ReadString()
 	fields := strings.Fields(s)
 	if len(fields) != 2 {
@@ -122,11 +125,11 @@ func (mgr *Manager) handleRoomReady(e *g.InterceptArgs) {
 
 	if info, ok := mgr.infoCache[roomId]; ok {
 		mgr.entered.Dispatch(&Args{Id: roomId, Info: &info})
-		dbg.Printf("entered room %s (id: %d)", info.Name, info.Id)
+		dbg.Printf("entered room %q by %s (ID: %d)", info.Name, info.Owner, info.Id)
 	} else {
 		mgr.entered.Dispatch(&Args{Id: roomId})
-		dbg.Printf("WARNING: failed to get room info from cache for room %d", roomId)
-		dbg.Printf("entered room (id: %d)", roomId)
+		dbg.Println("WARNING: failed to get room info from cache")
+		dbg.Printf("entered room (ID: %d)", roomId)
 	}
 }
 
@@ -137,7 +140,13 @@ func (mgr *Manager) handleHeightmap(e *g.InterceptArgs) {
 
 	mgr.Heightmap = strings.Split(e.Packet.ReadString(), "\r")
 
-	dbg.Printf("received heightmap (%dx%d)", len(mgr.Heightmap[0]), len(mgr.Heightmap))
+	if debug.Enabled {
+		if len(mgr.Heightmap) > 0 {
+			dbg.Printf("received heightmap (%dx%d)", len(mgr.Heightmap[0]), len(mgr.Heightmap))
+		} else {
+			dbg.Println("WARNING: empty heightmap")
+		}
+	}
 }
 
 func (mgr *Manager) handleActiveObjects(e *g.InterceptArgs) {
@@ -151,7 +160,8 @@ func (mgr *Manager) handleActiveObjects(e *g.InterceptArgs) {
 	for _, object := range objects {
 		id, err := strconv.Atoi(object.Id)
 		if err != nil {
-			panic(errors.New("invalid object ID: " + object.Id))
+			dbg.Printf("WARNING: invalid object ID: %q", object.Id)
+			continue
 		}
 		mgr.Objects[id] = object
 	}
@@ -171,14 +181,14 @@ func (mgr *Manager) handleActiveObjectAdd(e *g.InterceptArgs) {
 
 	id, err := strconv.Atoi(object.Id)
 	if err != nil {
-		dbg.Printf("WARNING: invalid object ID: %s", object.Id)
+		dbg.Printf("WARNING: invalid object ID: %q", object.Id)
 		return
 	}
 	mgr.Objects[id] = object
 
 	mgr.objectAdded.Dispatch(&ObjectArgs{Object: object})
 
-	dbg.Printf("added object %s (id: %s)", object.Class, object.Id)
+	dbg.Printf("added object %s (ID: %s)", object.Class, object.Id)
 }
 
 func (mgr *Manager) handleActiveObjectRemove(e *g.InterceptArgs) {
@@ -191,12 +201,16 @@ func (mgr *Manager) handleActiveObjectRemove(e *g.InterceptArgs) {
 
 	id, err := strconv.Atoi(object.Id)
 	if err != nil {
-		panic("ACTIVEOBJECT_REMOVE invalid ID: " + object.Id)
+		dbg.Printf("WARNING: invalid object ID: %q", object.Id)
+		return
 	}
 
 	if _, ok := mgr.Objects[id]; ok {
 		delete(mgr.Objects, id)
 		mgr.objectRemoved.Dispatch(&ObjectArgs{Object: object})
+		dbg.Printf("removed object (ID: %s)", object.Id)
+	} else {
+		dbg.Printf("WARNING: failed to remove object (ID: %d)", id)
 	}
 }
 
@@ -209,6 +223,10 @@ func (mgr *Manager) handleItems(e *g.InterceptArgs) {
 	e.Packet.Read(&items)
 
 	for _, item := range items {
+		// TODO: check if this loop gets optimized away when !debug.Enabled
+		if _, exists := mgr.Items[item.Id]; exists {
+			dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
+		}
 		mgr.Items[item.Id] = item
 	}
 
@@ -228,9 +246,9 @@ func (mgr *Manager) handleRemoveItem(e *g.InterceptArgs) {
 	if _, ok := mgr.Items[item.Id]; ok {
 		delete(mgr.Items, item.Id)
 		mgr.itemRemoved.Dispatch(&ItemArgs{Item: item})
-		dbg.Printf("removed item %s (id: %d)", item.Class, item.Id)
+		dbg.Printf("removed item %s (ID: %d)", item.Class, item.Id)
 	} else {
-		dbg.Printf("WARNING: failed to remove item %d", item.Id)
+		dbg.Printf("WARNING: failed to remove item (ID: %d)", item.Id)
 	}
 }
 
@@ -243,6 +261,10 @@ func (mgr *Manager) handleUsers(e *g.InterceptArgs) {
 	e.Packet.Read(&ents)
 
 	for _, entity := range ents {
+		// TODO: check if this branch gets optimized away when !debug.Enabled
+		if _, exists := mgr.Entities[entity.Index]; exists {
+			dbg.Printf("WARNING: duplicate entity index: %d", entity.Index)
+		}
 		mgr.Entities[entity.Index] = entity
 	}
 
@@ -272,6 +294,8 @@ func (mgr *Manager) handleChat(e *g.InterceptArgs) {
 		chatType = Whisper
 	} else if e.Packet.Header.Is(in.CHAT_3) {
 		chatType = Shout
+	} else {
+		dbg.Printf("WARNING: unknown chat header: %q", e.Packet.Header.Name)
 	}
 
 	if entity, ok := mgr.Entities[index]; ok {
@@ -280,6 +304,18 @@ func (mgr *Manager) handleChat(e *g.InterceptArgs) {
 			Type:       chatType,
 			Message:    msg,
 		})
+		var indicator string
+		switch chatType {
+		case Talk:
+			indicator = "[-]"
+		case Shout:
+			indicator = "[!]"
+		case Whisper:
+			indicator = "[*]"
+		}
+		dbg.Printf("%s %s: %s", indicator, entity.Name, msg)
+	} else {
+		dbg.Printf("WARNING: failed to find entity (index: %d)", index)
 	}
 }
 
@@ -291,15 +327,16 @@ func (mgr *Manager) handleLogout(e *g.InterceptArgs) {
 	s := e.Packet.ReadString()
 	index, err := strconv.Atoi(s)
 	if err != nil {
-		panic("LOGOUT not an integer: " + s)
+		dbg.Printf("WARNING: invalid index: %q", s)
+		return
 	}
 
 	if entity, ok := mgr.Entities[index]; ok {
 		delete(mgr.Entities, index)
 		mgr.entityLeft.Dispatch(&EntityArgs{Entity: entity})
-		dbg.Printf("removed entity %q (idx: %d)", entity.Name, entity.Index)
+		dbg.Printf("removed entity %q (index: %d)", entity.Name, entity.Index)
 	} else {
-		dbg.Printf("WARNING: failed to remove entity %d", index)
+		dbg.Printf("WARNING: failed to remove entity (index: %d)", index)
 	}
 }
 
