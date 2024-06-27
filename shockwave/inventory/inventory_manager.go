@@ -41,6 +41,8 @@ func (mgr *Manager) Update() {
 func (mgr *Manager) handleStripInfo2(e *g.InterceptArgs) {
 	var inv Inventory
 	e.Packet.Read(&inv)
+
+	clear(mgr.items)
 	for _, item := range inv.Items {
 		mgr.items[item.ItemId] = item
 	}
