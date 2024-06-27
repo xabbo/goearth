@@ -14,13 +14,24 @@ func (inv *Inventory) Parse(p *g.Packet, pos *int) {
 	p.Read(&inv.Items)
 }
 
+type ItemType string
+
+const (
+	Floor ItemType = "S"
+	Wall  ItemType = "I"
+)
+
+func (itemType *ItemType) Parse(p *g.Packet, pos *int) {
+	*itemType = ItemType(p.ReadStringPtr(pos))
+}
+
 // Item represents an inventory item.
 type Item struct {
 	ItemId int
 	Pos    int
 	// Type represents the type of the item.
 	// May be "S" for "stuff" (floor item), or "I" for "item" (wall item).
-	Type       string
+	Type       ItemType
 	Id         int
 	Class      string
 	DimX, DimY int
