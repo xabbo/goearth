@@ -35,6 +35,7 @@ var vl64len_tests = map[int]int{
 
 // value -> encoded
 var vl64_tests = map[int]string{
+	-1:       "M",
 	0:        "H",
 	1:        "I",
 	2:        "J",
