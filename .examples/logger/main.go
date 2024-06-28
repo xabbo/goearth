@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 
 	g "xabbo.b7c.io/goearth"
@@ -31,6 +32,7 @@ var filterRegex *regexp.Regexp
 
 func init() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
+	log.SetOutput(os.Stdout)
 
 	g.InitFlags()
 	flag.StringVar(&opts.filter, "filter", "", "Regex to filter packet names.")
