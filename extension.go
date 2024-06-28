@@ -219,16 +219,6 @@ func (ext *Ext) Intercept(identifiers ...Identifier) InterceptBuilder {
 	}
 }
 
-// Configures a new intercept builder with the specified incoming identifiers.
-func (ext *Ext) InterceptIn(names ...string) InterceptBuilder {
-	return ext.Intercept(MakeIdentifiers(In, names...)...)
-}
-
-// Configures a new intercept builder with the specified outgoing identifiers.
-func (ext *Ext) InterceptOut(names ...string) InterceptBuilder {
-	return ext.Intercept(MakeIdentifiers(Out, names...)...)
-}
-
 // Registers an event handler that is invoked when the game connection is lost.
 func (ext *Ext) Disconnected(handler VoidHandler) {
 	ext.disconnected.Register(handler)

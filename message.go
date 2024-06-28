@@ -65,18 +65,6 @@ type MsgInfo struct {
 	Source    string
 }
 
-func MakeIdentifiers(dir Direction, names ...string) []Identifier {
-	identifiers := make([]Identifier, 0, len(names))
-	for _, name := range names {
-		identifiers = append(identifiers, Identifier{dir, name})
-	}
-	return identifiers
-}
-
-func inHeader(value uint16) *NamedHeader {
-	return &NamedHeader{Header{In, value}, ""}
-}
-
 func outHeader(value uint16) *NamedHeader {
 	return &NamedHeader{Header{Out, value}, ""}
 }

@@ -47,10 +47,6 @@ func (args *InterceptArgs) Deregister() {
 /* Intercept builder */
 
 type InterceptBuilder interface {
-	// Applies the specified message identifiers.
-	Identifiers(identifiers ...Identifier) InterceptBuilder
-	// Applies the specified incoming/outgoing messages.
-	Both(identifiers ...string) InterceptBuilder
 	// Flags the intercept as transient.
 	Transient() InterceptBuilder
 	// Registers the intercept handler and returns a reference.
@@ -61,33 +57,6 @@ type interceptBuilder struct {
 	ext         *Ext
 	transient   bool
 	identifiers map[Identifier]struct{}
-}
-
-func (b interceptBuilder) In(identifiers ...string) InterceptBuilder {
-	for _, name := range identifiers {
-		b.identifiers[Identifier{In, name}] = struct{}{}
-	}
-	return b
-}
-
-func (b interceptBuilder) Out(identifiers ...string) InterceptBuilder {
-	for _, name := range identifiers {
-		b.identifiers[Identifier{Out, name}] = struct{}{}
-	}
-	return b
-}
-
-func (b interceptBuilder) Both(identifiers ...string) InterceptBuilder {
-	incoming := MakeIdentifiers(In, identifiers...)
-	outgoing := MakeIdentifiers(Out, identifiers...)
-	return b.Identifiers(incoming...).Identifiers(outgoing...)
-}
-
-func (b interceptBuilder) Identifiers(identifiers ...Identifier) InterceptBuilder {
-	for _, identifier := range identifiers {
-		b.identifiers[identifier] = struct{}{}
-	}
-	return b
 }
 
 func (b interceptBuilder) Transient() InterceptBuilder {
@@ -174,7 +143,7 @@ func (i *inlineInterceptor) interceptHandler(e *InterceptArgs) {
 
 func (i *inlineInterceptor) bindIntercept() {
 	i.bindOnce.Do(func() {
-		i.ref = i.ext.Intercept().Identifiers(i.identifiers...).Transient().With(i.interceptHandler)
+		i.ref = i.ext.Intercept(i.identifiers...).Transient().With(i.interceptHandler)
 	})
 }
 
