@@ -19,41 +19,103 @@ type Packet struct {
 	Client ClientType
 }
 
-// Represents a unique identifier.
-// Encoded as an int64 on Unity sessions, int32 on Flash sessions.
-type Id int64
-
-// Repesents the length of an array.
-// Encoded as an int32 on Unity sessions, int16 on Flash sessions.
-type Length int32
-
-// Represents a float32 that is encoded as a string.
-type FloatStr float32
-
-// Represents an object that can be parsed from a Packet.
+// Parsable represents an object that can be read from a Packet.
 type Parsable interface {
 	Parse(pkt *Packet, pos *int)
 }
 
-// Represents an object that can be written to a Packet.
+// Composable represents an object that can be written to a Packet.
 type Composable interface {
-	Compose(pkt *Packet)
+	Compose(pkt *Packet, pos *int)
 }
 
-func (id *Id) Parse(pkt *Packet, pos *int) {
-	*id = pkt.ReadIdPtr(pos)
-}
+// Represents a unique numeric identifier.
+//
+// Encoded as an int on Flash and Shockwave sessions, and a long on Unity sessions.
+type Id int64
 
-func (length *Length) Parse(pkt *Packet, pos *int) {
-	*length = pkt.ReadLengthPtr(pos)
-}
-
-func (floatStr *FloatStr) Parse(pkt *Packet, pos *int) {
-	value, err := strconv.ParseFloat(pkt.ReadStringPtr(pos), 32)
-	if err != nil {
-		panic(err)
+func (id *Id) Parse(p *Packet, pos *int) {
+	switch p.Client {
+	case Flash, Shockwave:
+		*id = Id(p.ReadIntPtr(pos))
+	case Unity:
+		*id = Id(p.ReadLongPtr(pos))
+	default:
+		panic(fmt.Errorf("attempt to read Id on unknown client: %s", p.Client))
 	}
-	*floatStr = FloatStr(value)
+}
+
+func (id Id) Compose(p *Packet, pos *int) {
+	switch p.Client {
+	case Flash, Shockwave:
+		p.WriteIntPtr(pos, int(id))
+	case Unity:
+		p.WriteLongPtr(pos, int64(id))
+	default:
+		panic("Cannot write ID: unknown client type.")
+	}
+}
+
+// Repesents the length of an array or collection of items.
+//
+// Encoded as a short on Shockwave and Unity, otherwise as an int.
+type Length int32
+
+func (length *Length) Parse(p *Packet, pos *int) {
+	switch p.Client {
+	case Unity, Shockwave:
+		*length = Length(p.ReadShortPtr(pos))
+	default:
+		*length = Length(p.ReadIntPtr(pos))
+	}
+
+}
+
+func (length Length) Compose(p *Packet, pos *int) {
+	switch p.Client {
+	case Flash:
+		p.WriteIntPtr(pos, int(length))
+	case Unity, Shockwave:
+		p.WriteShortPtr(pos, int16(length))
+	default:
+		panic("Cannot write Length: unknown client type.")
+	}
+}
+
+// Represents a base-64 encoded integer, used in the Shockwave client.
+type B64 int16
+
+func (b64 *B64) Parse(p *Packet, pos *int) {
+	p.assertCanRead(*pos, 2)
+	*b64 = B64(encoding.B64Decode(p.Data[*pos : *pos+2]))
+	*pos += 2
+}
+
+func (b64 B64) Compose(p *Packet, pos *int) {
+	p.ensureLength(*pos, 2)
+	encoding.B64Encode(p.Data[*pos:*pos+2], int(b64))
+	*pos += 2
+}
+
+// Represents a variable-length base-64 encoded integer, used in the Shockwave client.
+type VL64 int32
+
+func (vl64 *VL64) Parse(p *Packet, pos *int) {
+	p.assertCanRead(*pos, 1)
+	n := encoding.VL64DecodeLen(p.Data[*pos])
+	if n <= 0 || n > 6 {
+		panic(fmt.Errorf("invalid byte length when decoding VL64: %d", n))
+	}
+	p.assertCanRead(*pos, n)
+	*vl64 = VL64(encoding.VL64Decode(p.Data[*pos : *pos+n]))
+	*pos += n
+}
+
+func (vl64 VL64) Compose(p *Packet, pos *int) {
+	n := encoding.VL64EncodeLen(int(vl64))
+	p.ensureLength(*pos, n)
+	encoding.VL64Encode(p.Data[*pos:*pos+n], int(vl64))
+	*pos += n
 }
 
 // Extends the packet length by `n` bytes.
@@ -98,6 +160,7 @@ func (p *Packet) Length() int {
 
 /* Reading */
 
+// Reads into the specified byte slice from the specified position and advances it.
 func (p *Packet) ReadBufferPtr(pos *int, buf []byte) {
 	length := len(buf)
 	p.assertCanRead(*pos, length)
@@ -105,10 +168,12 @@ func (p *Packet) ReadBufferPtr(pos *int, buf []byte) {
 	*pos += length
 }
 
+// Reads into the specified byte slice from the specified position.
 func (p *Packet) ReadBufferAt(pos int, buf []byte) {
 	p.ReadBufferPtr(&pos, buf)
 }
 
+// Reads into the specified byte slice from the current position.
 func (p *Packet) ReadBuffer(buf []byte) {
 	p.ReadBufferPtr(&p.Pos, buf)
 }
@@ -193,9 +258,13 @@ func (p *Packet) ReadShortPtr(pos *int) (value int16) {
 	if p.Client == Shockwave {
 		switch p.Header.Dir {
 		case In:
-			return int16(p.ReadVL64Ptr(pos))
+			var vl64 VL64
+			vl64.Parse(p, pos)
+			return int16(vl64)
 		case Out:
-			return int16(p.ReadB64Ptr(pos))
+			var b64 B64
+			b64.Parse(p, pos)
+			return int16(b64)
 		default:
 			panic(fmt.Errorf("%w: unknown packet direction when reading short on shockwave session",
 				errors.ErrUnsupported))
@@ -226,7 +295,9 @@ func (p *Packet) ReadShort() int16 {
 // Read as a VL64 on Shockwave, otherwise as an int32.
 func (p *Packet) ReadIntPtr(pos *int) (value int) {
 	if p.Client == Shockwave {
-		return p.ReadVL64Ptr(pos)
+		var vl64 VL64
+		vl64.Parse(p, pos)
+		return int(vl64)
 	}
 	p.assertCanRead(*pos, 4)
 	value = int(int32(binary.BigEndian.Uint32(p.Data[*pos:])))
@@ -353,60 +424,6 @@ func (p *Packet) ReadString() string {
 	return p.ReadStringPtr(&p.Pos)
 }
 
-// Reads a Length from the specified position and advances it.
-//
-// Read as a short on Unity and Shockwave, otherwise as an int.
-func (p *Packet) ReadLengthPtr(pos *int) (length Length) {
-	switch p.Client {
-	case Unity, Shockwave:
-		return Length(p.ReadShortPtr(pos))
-	default:
-		return Length(p.ReadIntPtr(pos))
-	}
-}
-
-// Reads a Length at the specified position.
-//
-// Read as a short on Unity and Shockwave, otherwise as an int.
-func (p *Packet) ReadLengthAt(pos int) Length {
-	return p.ReadLengthPtr(&pos)
-}
-
-// Reads a Length from the current position.
-//
-// Read as a short on Unity and Shockwave, otherwise as an int.
-func (p *Packet) ReadLength() Length {
-	return p.ReadLengthPtr(&p.Pos)
-}
-
-// Reads an Id from the specified position and advances it.
-//
-// Read as an int on Flash and Shockwave, and as a long on Unity.
-func (p *Packet) ReadIdPtr(pos *int) (id Id) {
-	switch p.Client {
-	case Flash, Shockwave:
-		return Id(p.ReadIntPtr(pos))
-	case Unity:
-		return Id(p.ReadLongPtr(pos))
-	default:
-		panic(fmt.Errorf("attempt to read Id on unknown client: %s", p.Client))
-	}
-}
-
-// Reads an Id at the specified position.
-//
-// Read as an int on Flash and Shockwave, and as a long on Unity.
-func (p *Packet) ReadIdAt(pos int) Id {
-	return p.ReadIdPtr(&pos)
-}
-
-// Reads an Id from the current position.
-//
-// Read as an int on Flash and Shockwave, and as a long on Unity.
-func (p *Packet) ReadId() Id {
-	return p.ReadIdPtr(&p.Pos)
-}
-
 // Reads into the specified variables from the specified position and advances it.
 // The provided variables must be a pointer type or implement [Parsable].
 func (p *Packet) ReadPtr(pos *int, vars ...any) {
@@ -435,14 +452,6 @@ func (p *Packet) Read(vars ...any) {
 }
 
 func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
-	if v.CanAddr() {
-		if parsable, ok := v.Addr().Interface().(Parsable); ok {
-			parsable.Parse(p, pos)
-			return
-		}
-	} else {
-		panic("cannot read non addressable value")
-	}
 	switch v.Kind() {
 	case reflect.Pointer:
 		p.readReflectPtr(pos, v.Elem())
@@ -453,9 +462,10 @@ func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 		}
 	case reflect.Slice:
 		t := v.Type()
-		len := int(p.ReadLengthPtr(pos))
-		slc := reflect.MakeSlice(t, len, len)
-		for i := 0; i < len; i++ {
+		var len Length
+		len.Parse(p, pos)
+		slc := reflect.MakeSlice(t, int(len), int(len))
+		for i := 0; i < int(len); i++ {
 			p.readReflectPtr(pos, slc.Index(i))
 		}
 		v.Set(slc)
@@ -471,11 +481,8 @@ func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 			return
 		}
 	default:
-		if v.CanAddr() {
-			v = v.Addr()
-		}
-		if v.CanInterface() {
-			if p.readInterfacePtr(pos, v.Interface()) {
+		if v.CanAddr() && v.CanInterface() {
+			if p.readInterfacePtr(pos, v.Addr().Interface()) {
 				return
 			}
 		}
@@ -513,8 +520,6 @@ func (p *Packet) readInterfacePtr(pos *int, v any) bool {
 		*v = uint64(p.ReadLongPtr(pos))
 	case *string:
 		*v = p.ReadStringPtr(pos)
-	case []byte:
-		p.ReadBufferPtr(pos, v)
 	default:
 		return false
 	}
@@ -533,7 +538,7 @@ func (p *Packet) WriteBoolPtr(pos *int, value bool) *Packet {
 		b = 1
 	}
 	if p.Client == Shockwave {
-		p.WriteVL64At(*pos, int(b))
+		VL64(b).Compose(p, pos)
 	} else {
 		p.Data[*pos] = b
 	}
@@ -599,9 +604,9 @@ func (p *Packet) WriteShortPtr(pos *int, value int16) *Packet {
 	if p.Client == Shockwave {
 		switch p.Header.Dir {
 		case In:
-			p.WriteVL64Ptr(pos, int(value))
+			VL64(value).Compose(p, pos)
 		case Out:
-			p.WriteB64Ptr(pos, int(value))
+			B64(value).Compose(p, pos)
 		default:
 			panic(fmt.Errorf("%w: unknown packet direction when writing short on shockwave session",
 				errors.ErrUnsupported))
@@ -633,7 +638,7 @@ func (p *Packet) WriteShort(value int16) *Packet {
 // Written as a VL64 on Shockwave, otherwise as an int32.
 func (p *Packet) WriteIntPtr(pos *int, value int) *Packet {
 	if p.Client == Shockwave {
-		p.WriteVL64Ptr(pos, value)
+		VL64(value).Compose(p, pos)
 		return p
 	}
 	p.ensureLength(*pos, 4)
@@ -787,43 +792,12 @@ func (p *Packet) WriteLength(length Length) *Packet {
 	return p.WriteLengthPtr(&p.Pos, length)
 }
 
-// Writes an Id at the specified position and advances it.
-//
-// Written as an int on Flash and Shockwave sessions, and a long on Unity sessions.
-func (p *Packet) WriteIdPtr(pos *int, id Id) *Packet {
-	switch p.Client {
-	case Flash, Shockwave:
-		p.WriteIntPtr(pos, int(id))
-	case Unity:
-		p.WriteLongPtr(pos, int64(id))
-	default:
-		panic("Cannot write ID: unknown client type.")
-	}
-	return p
-}
-
-// Writes an Id at the specified position.
-//
-// Written as an int on Flash and Shockwave sessions, and a long on Unity sessions.
-func (p *Packet) WriteIdAt(pos int, id Id) *Packet {
-	return p.WriteIdPtr(&pos, id)
-}
-
-// Writes an Id at the current position.
-//
-// Written as an int on Flash and Shockwave sessions, and a long on Unity sessions.
-func (p *Packet) WriteId(id Id) *Packet {
-	return p.WriteIdPtr(&p.Pos, id)
-}
-
 // Writes the specified values at the specified position and advances it.
 func (p *Packet) WritePtr(pos *int, values ...any) *Packet {
 	for _, value := range values {
 		switch v := value.(type) {
 		case Composable:
-			v.Compose(p)
-		case []byte:
-			p.WriteBytesPtr(pos, v)
+			v.Compose(p, pos)
 		case bool:
 			p.WriteBoolPtr(pos, v)
 		case int8:
@@ -850,12 +824,6 @@ func (p *Packet) WritePtr(pos *int, values ...any) *Packet {
 			p.WriteLongPtr(pos, int64(v))
 		case string:
 			p.WriteStringPtr(pos, v)
-		case Id:
-			p.WriteIdPtr(pos, v)
-		case Length:
-			p.WriteLengthPtr(pos, v)
-		case FloatStr:
-			p.WriteStringPtr(pos, strconv.FormatFloat(float64(v), 'f', -1, 32))
 		default:
 			r := reflect.ValueOf(v)
 			if r.Kind() == reflect.Pointer {
@@ -905,11 +873,7 @@ func (p *Packet) ModifyStringPtr(pos *int, transform func(string) string) *Packe
 		p.Data = p.Data[:len(p.Data)+diff]
 	}
 	*pos = start
-	if p.Client == Shockwave {
-		p.WriteB64Ptr(pos, postlen)
-	} else {
-		p.WriteShortPtr(pos, int16(postlen))
-	}
+	p.WriteShortPtr(pos, int16(postlen))
 	p.WriteBytesPtr(pos, postbs)
 	return p
 }
@@ -978,89 +942,4 @@ func (p *Packet) Copy() *Packet {
 		Header: p.Header,
 		Data:   data,
 	}
-}
-
-// Shockwave encoding
-
-// Reads a 2-byte B64 value from the specified position and advances it.
-func (p *Packet) ReadB64Ptr(pos *int) int16 {
-	p.assertCanRead(*pos, 2)
-	value := 64 * uint16(p.Data[*pos]-0x40)
-	value += uint16(p.Data[*pos+1] - 0x40)
-	*pos += 2
-	return int16(value)
-}
-
-// Reads a 2-byte B64 value from the specified position.
-func (p *Packet) ReadB64At(pos int) int16 {
-	return p.ReadB64Ptr(&pos)
-}
-
-// Reads a 2-byte B64 value from the current position.
-func (p *Packet) ReadB64() int16 {
-	return p.ReadB64Ptr(&p.Pos)
-}
-
-// Writes a 2-byte B64 value at the specified position and advances it.
-func (p *Packet) WriteB64Ptr(pos *int, value int) *Packet {
-	p.ensureLength(*pos, 2)
-	encoding.B64Encode(p.Data[*pos:*pos+2], int(value))
-	*pos += 2
-	return p
-}
-
-// Writes a 2-byte B64 value at the specified position.
-func (p *Packet) WriteB64At(pos int, value int) *Packet {
-	p.WriteB64Ptr(&pos, value)
-	return p
-}
-
-// Writes a 2-byte B64 value at the current position.
-func (p *Packet) WriteB64(value int) *Packet {
-	p.WriteB64Ptr(&p.Pos, value)
-	return p
-}
-
-// Reads a VL64 from the specified position and advances it.
-func (p *Packet) ReadVL64Ptr(pos *int) int {
-	p.assertCanRead(*pos, 1)
-	n := encoding.VL64DecodeLen(p.Data[*pos])
-	if n <= 0 || n > 6 {
-		panic(fmt.Errorf("invalid byte length when decoding VL64: %d", n))
-	}
-	p.assertCanRead(*pos, n)
-	value := encoding.VL64Decode(p.Data[*pos : *pos+n])
-	*pos += n
-	return value
-}
-
-// Reads a VL64 from the specified position.
-func (p *Packet) ReadVL64At(pos int) int {
-	return p.ReadVL64Ptr(&pos)
-}
-
-// Reads a VL64 from the current position.
-func (p *Packet) ReadVL64() int {
-	return p.ReadVL64Ptr(&p.Pos)
-}
-
-// Writes a VL64 at the specified position and advances it.
-func (p *Packet) WriteVL64Ptr(pos *int, value int) *Packet {
-	n := encoding.VL64EncodeLen(value)
-	p.ensureLength(*pos, n)
-	encoding.VL64Encode(p.Data[*pos:], value)
-	*pos += n
-	return p
-}
-
-// Writes a VL64 at the specified position.
-func (p *Packet) WriteVL64At(pos int, value int) *Packet {
-	p.WriteVL64Ptr(&pos, value)
-	return p
-}
-
-// Writes a VL64 at the current position.
-func (p *Packet) WriteVL64(value int) *Packet {
-	p.WriteVL64Ptr(&p.Pos, value)
-	return p
 }

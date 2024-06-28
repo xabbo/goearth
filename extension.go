@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"golang.org/x/exp/slices"
+
+	"xabbo.b7c.io/goearth/encoding"
 )
 
 // maximum Habbo packet sizes
@@ -358,12 +360,13 @@ func wrapPacket(packet *Packet) *Packet {
 	} else {
 		pkt.WriteByte(0)
 	}
-	if packet.Client == Shockwave {
-		pkt.WriteInt(2 + packet.Length())
-		pkt.WriteB64(int(packet.Header.Value))
-	} else {
+	if packet.Client != Shockwave {
 		pkt.WriteInt(6 + packet.Length())
-		pkt.WriteInt(2 + packet.Length())
+	}
+	pkt.WriteInt(2 + packet.Length())
+	if packet.Client == Shockwave {
+		B64(packet.Header.Value).Compose(pkt, &pkt.Pos)
+	} else {
 		pkt.WriteShort(int16(packet.Header.Value))
 	}
 	pkt.WriteBytes(packet.Data)
@@ -520,7 +523,7 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	var headerValue uint16
 	if ext.client.Type == Shockwave {
 		packetOffset = tabs[2] + 2
-		headerValue = uint16(p.ReadB64At(packetOffset))
+		headerValue = uint16(encoding.B64Decode(p.Data[packetOffset : packetOffset+2]))
 	} else {
 		headerValue = binary.BigEndian.Uint16(p.Data[packetOffset:])
 	}
@@ -568,7 +571,7 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		p.WriteIntAt(tabs[2]+2, 2+pktModified.Length())
 		p.WriteShortAt(packetOffset, int16(pktModified.Header.Value))
 	} else {
-		p.WriteB64At(packetOffset, int(pktModified.Header.Value))
+		encoding.B64Encode(p.Data[packetOffset:packetOffset+2], int(pktModified.Header.Value))
 	}
 	p.WriteBytesAt(packetOffset+2, pktModified.Data)
 	p.WriteBytesAt(tailOffset+diff, tail)
