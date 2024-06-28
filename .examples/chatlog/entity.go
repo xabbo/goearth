@@ -18,7 +18,7 @@ const (
 type Tile struct {
 	X int
 	Y int
-	Z g.FloatStr
+	Z float64
 }
 
 type EntityBase struct {
