@@ -51,6 +51,8 @@ import "xabbo.b7c.io/goearth/in"
 import "xabbo.b7c.io/goearth/out"
 ```
 
+For the Shockwave messages, use the `xabbo.b7c.io/goearth/shockwave/in` and `out` packages.
+
 ### Events
 
 #### On extension initialized
@@ -93,8 +95,7 @@ ext.Disconnected(func() {
 
 ```go
 ext.InterceptAll(func (e *g.Intercept) {
-    log.Printf("Intercepted %s message %q\n",
-        e.Dir(), e.Packet.Header.Name)
+    log.Printf("Intercepted %s message %q\n", e.Dir(), e.Name())
 })
 ```
 
@@ -147,27 +148,29 @@ pkt.Read(&x, &y, &z)
 #### Into a struct
 
 ```go
-type MyStruct struct {
+type Tile struct {
     X, Y int
-    Z    string
+    Z    float32
 }
 ```
 
 ```go
-myStruct := MyStruct{}
-pkt.Read(&myStruct)
+tile := Tile{}
+pkt.Read(&tile)
 ```
 
 #### Using a custom parser by implementing Parsable
 
 ```go
-type MyParsable struct {
+type Tile struct {
     X, Y int
     Z    float32 
 }
 
-func (v *MyParsable) Parse(p *g.Packet, pos *int) {
+func (v *Tile) Parse(p *g.Packet, pos *int) {
     // perform custom parsing logic here
+    // make sure to use the Read*Ptr variants here
+    // to ensure the provided position is advanced properly
     x := p.ReadIntPtr(pos)
     y := p.ReadIntPtr(pos)
     zStr := p.ReadStringPtr(pos)
@@ -175,14 +178,14 @@ func (v *MyParsable) Parse(p *g.Packet, pos *int) {
     if err != nil {
         panic(err)
     }
-    *v = MyParsable{ X: x, Y: y, Z: float32(z) }
+    *v = Tile{ X: x, Y: y, Z: float32(z) }
 }
 ```
 
 ```go
-myParsable := MyParsable{}
-// myParsable.Parse(...) will be invoked
-pkt.Read(&myParsable)
+tile := Tile{}
+// Tile.Parse(...) will be invoked
+pkt.Read(&tile)
 ```
 
 ### Writing packets
@@ -190,33 +193,49 @@ pkt.Read(&myParsable)
 #### By type
 
 ```go
-x, y := 1, 2
-z := "3.0"
-pkt.WriteInt(x)
-pkt.WriteInt(y)
-pkt.WriteString(z)
+pkt.WriteInt(1)
+pkt.WriteInt(2)
+pkt.WriteString("3.0")
 ```
 
 #### By values
 
 ```go
-x, y := 1, 2
-z := "3.0"
-pkt.Write(x, y, z)
+// writes int, int, string
+pkt.Write(1, 2, "3.0")
 ```
 
 #### By struct
 
 ```go
-type MyStruct struct {
+type Tile struct {
     X, Y int
-    Z    string
+    Z    float32
 }
-myStruct := MyStruct{X: 1, Y: 2, Z: "3.0"}
-pkt.Write(myStruct)
+tile := Tile{X: 1, Y: 2, Z: 3.0}
+pkt.Write(tile)
+```
+
+#### Using a custom composer by implementing Composable
+
+```go
+type Tile struct {
+    X, Y int
+    Z    float32 
+}
+
+func (v Tile) Compose(p *g.Packet, pos *int) {
+    // perform custom composing logic here
+    // make sure to use the Write*Ptr variants here
+    // to ensure the provided position is advanced properly
+    p.WriteIntPtr(pos, v.X)
+    p.WriteIntPtr(pos, v.Y)
+    p.WriteStringPtr(pos, strconv.FormatFloat(v.Z, 'f', -1, 32))
+}
 ```
 
 ### Sending packets
+
 
 #### By values
 
@@ -255,17 +274,20 @@ if pkt := ext.Recv(in.UserObject).Wait(); pkt != nil {
 }
 ```
 
-Note that calling `Wait()` from an event handler would cause the extension to hang as event handlers are invoked from the main packet processing loop.\
-Launch a goroutine if you need to do any inline receiving of packets, for example:
+**Note:** do not perform any long running operations inside an intercept handler.\
+If you attempt to `Wait` for a packet inside an intercept handler,\
+you will never receive it as the packet's processing loop will be paused until it times out.\
+Launch a goroutine with the `go` keyword if you need to do this inside an intercept handler, for example:
 
 ```go
-ext.Activated(func() {
-    go doStuff()
+ext.Intercept(in.Chat).With(func(e *g.Intercept) {
+    // also, do not pass Packets to another goroutine as its buffer may no longer be valid.
+    // read any values within the intercept handler and then pass those.
+    msg := e.Packet.ReadStringAt(4)
+    go func() {
+        // perform long running operation here...
+        time.Sleep(10 * time.Second)
+        ext.Send(out.Shout, msg)
+    }()
 })
-```
-
-```go
-func doStuff() {
-    // send and receive packets here 
-}
 ```
