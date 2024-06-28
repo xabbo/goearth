@@ -47,7 +47,7 @@ func main() {
 	})
 	// Intercepting all packets
 	ext.InterceptAll(func(e *g.Intercept) {
-		if e.Packet.Header.Is(in.Ping) {
+		if ext.Headers().Is(e.Packet.Header, in.Ping) {
 			log.Printf("Received ping")
 		}
 	})
@@ -61,7 +61,7 @@ func main() {
 func handleChat(e *g.Intercept) {
 	// Reading data from packets
 	msg := e.Packet.ReadString()
-	action := strings.ToLower(e.Packet.Header.Name)
+	action := strings.ToLower(e.Name())
 	if action == "chat" {
 		action = "said"
 	} else {
@@ -75,7 +75,7 @@ func handleChat(e *g.Intercept) {
 	} else if strings.Contains(msg, "apple") {
 		// Modifying packets
 		msg = strings.ReplaceAll(msg, "apple", "orange")
-		e.Packet.ReplaceStringAt(msg, 0)
+		e.Packet.ReplaceStringAt(0, msg)
 		log.Printf("Replacing message: %q", msg)
 	}
 }
@@ -93,7 +93,9 @@ func getUserInfo() {
 		if the packet should be intercepted.
 	*/
 	if pkt := ext.Recv(in.UserObject).Block().Wait(); pkt != nil {
-		id, name := pkt.ReadId(), pkt.ReadString()
+		var id g.Id
+		var name string
+		pkt.Read(&id, &name)
 		msg := fmt.Sprintf("Got user info. (id:%d, name:%q)", id, name)
 		log.Println(msg)
 		// Sending client-side packets

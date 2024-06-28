@@ -54,8 +54,9 @@ func main() {
 	ext.Run()
 }
 
-func handleIntercept(e *g.InterceptArgs) {
-	if filterRegex != nil && !filterRegex.MatchString(e.Packet.Header.Name) {
+func handleIntercept(e *g.Intercept) {
+	name := ext.Headers().Name(e.Packet.Header)
+	if filterRegex != nil && !filterRegex.MatchString(name) {
 		return
 	}
 
@@ -69,6 +70,6 @@ func handleIntercept(e *g.InterceptArgs) {
 		indicator = ">>"
 		color = CYAN
 	}
-	log.Printf("%s%s %6d %s %s%s\n%s",
-		color, indicator, e.Sequence(), e.Packet.Header.Name, bytes, RESET, hex.Dump(e.Packet.Data))
+	log.Printf("%s%s %4d %s %s%s\n%s",
+		color, indicator, e.Packet.Header.Value, name, bytes, RESET, hex.Dump(e.Packet.Data))
 }
