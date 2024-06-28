@@ -118,11 +118,6 @@ func (vl64 VL64) Compose(p *Packet, pos *int) {
 	*pos += n
 }
 
-// Extends the packet length by `n` bytes.
-func (p *Packet) extendLength(n int) {
-	p.Data = append(p.Data, make([]byte, n)...)
-}
-
 // Ensures the packet has enough capacity to store `n` bytes from the specified position.
 func (p *Packet) ensureLength(pos int, n int) {
 	if pos < 0 {
@@ -857,24 +852,28 @@ func (p *Packet) Write(values ...any) *Packet {
 
 // Modifies a string at the specified position and advances it.
 func (p *Packet) ModifyStringPtr(pos *int, transform func(string) string) *Packet {
+	// read original string
 	start := *pos
-	pre := p.ReadStringPtr(pos)
+	value := p.ReadStringPtr(pos)
 	end := *pos
-	prelen := (end - start - 2)
-	post := transform(pre)
-	postbs := []byte(post)
-	postlen := len(postbs)
-	diff := postlen - prelen
-	if diff > 0 {
-		p.extendLength(diff)
-	}
-	copy(p.Data[start+2+postlen:], p.Data[end:])
+
+	// save tail
+	tail := make([]byte, len(p.Data)-end)
+	copy(tail, p.Data[end:])
+
+	// write modified string & calculate offsets
+	*pos = start
+	p.WriteStringPtr(pos, transform(value))
+
+	diff := *pos - end
 	if diff < 0 {
 		p.Data = p.Data[:len(p.Data)+diff]
+	} else if diff > 0 {
+		p.ensureLength(end+len(tail), diff)
 	}
-	*pos = start
-	p.WriteShortPtr(pos, int16(postlen))
-	p.WriteBytesPtr(pos, postbs)
+
+	// restore tail
+	copy(p.Data[*pos:], tail)
 	return p
 }
 
