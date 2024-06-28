@@ -55,5 +55,5 @@ type ConnectArgs struct {
 type ConnectEvent = Event[ConnectArgs]
 type ConnectHandler = EventHandler[ConnectArgs]
 
-type InterceptEvent = Event[InterceptArgs]
-type InterceptHandler = EventHandler[InterceptArgs]
+type InterceptEvent = Event[Intercept]
+type InterceptHandler = EventHandler[Intercept]

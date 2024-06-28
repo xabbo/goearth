@@ -38,7 +38,7 @@ func main() {
 	ext.Run()
 }
 
-func handleRoomData(e *g.InterceptArgs) {
+func handleRoomData(e *g.Intercept) {
 	roomData := RoomData{}
 	e.Packet.Read(&roomData)
 	roomCache[roomData.Id] = roomData
@@ -50,7 +50,7 @@ func handleRoomData(e *g.InterceptArgs) {
 	}
 }
 
-func handleInitRoom(e *g.InterceptArgs) {
+func handleInitRoom(e *g.Intercept) {
 	for k := range entities {
 		delete(entities, k)
 	}
@@ -61,7 +61,7 @@ func handleInitRoom(e *g.InterceptArgs) {
 	}
 }
 
-func handleUsers(e *g.InterceptArgs) {
+func handleUsers(e *g.Intercept) {
 	ents := []Entity{}
 	e.Packet.Read(&ents)
 	for _, ent := range ents {
@@ -69,7 +69,7 @@ func handleUsers(e *g.InterceptArgs) {
 	}
 }
 
-func handleChat(e *g.InterceptArgs) {
+func handleChat(e *g.Intercept) {
 	idx, msg := 0, ""
 	e.Packet.Read(&idx, &msg)
 	if ent, ok := entities[idx]; ok && ent.Type == USER {

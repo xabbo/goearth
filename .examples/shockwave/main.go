@@ -46,12 +46,12 @@ func main() {
 	ext.Run()
 }
 
-func handleEnterRoom(e *g.InterceptArgs) {
+func handleEnterRoom(e *g.Intercept) {
 	usersPacketCount = 0
 	clear(users)
 }
 
-func handleUsers(e *g.InterceptArgs) {
+func handleUsers(e *g.Intercept) {
 	// Observations:
 	// The first USERS packet sent upon entering the room (after OPC_OK)
 	// is the list of users that are already in the room.
@@ -70,7 +70,7 @@ func handleUsers(e *g.InterceptArgs) {
 	}
 }
 
-func handleChat(e *g.InterceptArgs) {
+func handleChat(e *g.Intercept) {
 	index := e.Packet.ReadInt()
 	msg := e.Packet.ReadString()
 	if user, ok := users[index]; ok {
@@ -78,7 +78,7 @@ func handleChat(e *g.InterceptArgs) {
 	}
 }
 
-func handleRemoveUser(e *g.InterceptArgs) {
+func handleRemoveUser(e *g.Intercept) {
 	s := e.Packet.ReadString()
 	index, err := strconv.Atoi(s)
 	if err != nil {

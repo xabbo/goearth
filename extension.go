@@ -58,7 +58,7 @@ func makePacket(client ClientType, header *NamedHeader, values ...any) *Packet {
 	return packet
 }
 
-func resetPos(e *InterceptArgs) {
+func resetPos(e *Intercept) {
 	e.Packet.Pos = 0
 }
 
@@ -121,6 +121,13 @@ func (e *Ext) ExtPort() int {
 // Gets the headers used by this extension.
 func (ext *Ext) Headers() *Headers {
 	return ext.headers
+}
+
+// Header retrieves the named header for the specified Identifier.
+//
+// Panics if the header is unable to be resolved.
+func (ext *Ext) Header(id Identifier) *NamedHeader {
+	return ext.mustResolve(id.Dir, id.Name)
 }
 
 // Gets if there is an active connection to the game.
@@ -464,7 +471,7 @@ func (ext *Ext) clearIntercepts() {
 }
 
 func dispatchIntercept(handlers []InterceptHandler, index int, keep *int,
-	header *NamedHeader, intercept *InterceptArgs) {
+	header *NamedHeader, intercept *Intercept) {
 	defer func() {
 		if err := recover(); err != nil {
 			if header == nil {
@@ -539,7 +546,7 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		Data:   packetData,
 	}
 
-	intercept := &InterceptArgs{
+	intercept := &Intercept{
 		ext:    ext,
 		dir:    dir,
 		seq:    seq,
@@ -569,7 +576,7 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	ext.sendRaw(p)
 }
 
-func (ext *Ext) dispatchGlobalIntercepts(args *InterceptArgs) {
+func (ext *Ext) dispatchGlobalIntercepts(args *Intercept) {
 	ext.globalInterceptLock.Lock()
 	defer ext.globalInterceptLock.Unlock()
 
@@ -581,7 +588,7 @@ func (ext *Ext) dispatchGlobalIntercepts(args *InterceptArgs) {
 	ext.globalIntercept.handlers = handlers[:keep]
 }
 
-func (ext *Ext) dispatchInterceptGroup(intercept *interceptGroup, args *InterceptArgs) {
+func (ext *Ext) dispatchInterceptGroup(intercept *interceptGroup, args *Intercept) {
 	if intercept.dereg {
 		return
 	}
@@ -609,7 +616,7 @@ func (ext *Ext) snapshotIntercepts(header Header) (snapshot []*interceptGroup, e
 	return
 }
 
-func (ext *Ext) dispatchIntercepts(args *InterceptArgs) {
+func (ext *Ext) dispatchIntercepts(args *Intercept) {
 	removals := []*interceptGroup{}
 
 	header := args.Packet.Header.Header

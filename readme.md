@@ -92,7 +92,7 @@ ext.Disconnected(func() {
 #### All packets
 
 ```go
-ext.InterceptAll(func (e *g.InterceptArgs) {
+ext.InterceptAll(func (e *g.Intercept) {
     log.Printf("Intercepted %s message %q\n",
         e.Dir(), e.Packet.Header.Name)
 })
@@ -101,7 +101,7 @@ ext.InterceptAll(func (e *g.InterceptArgs) {
 #### By name
 
 ```go
-ext.Intercept(in.Chat, in.Shout, in.Whisper).With(func (e *g.InterceptArgs) {
+ext.Intercept(in.Chat, in.Shout, in.Whisper).With(func (e *g.Intercept) {
     idx := e.Packet.ReadInt()
     msg := e.Packet.ReadString()
     log.Printf("Entity #%d said %q", idx, msg)
@@ -111,7 +111,7 @@ ext.Intercept(in.Chat, in.Shout, in.Whisper).With(func (e *g.InterceptArgs) {
 #### Blocking packets
 
 ```go
-ext.Intercept(out.MoveAvatar).With(func (e *g.InterceptArgs) {
+ext.Intercept(out.MoveAvatar).With(func (e *g.Intercept) {
     // prevent movement
     e.Block()
 })
@@ -120,7 +120,7 @@ ext.Intercept(out.MoveAvatar).With(func (e *g.InterceptArgs) {
 #### Modifying packets
 
 ```go
-ext.Intercept(in.Chat, in.Shout).With(func(e *g.InterceptArgs) {
+ext.Intercept(in.Chat, in.Shout).With(func(e *g.Intercept) {
     // make everyone's chat messages uppercase
     e.Packet.ModifyStringAt(4, strings.ToUpper)
 })

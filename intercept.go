@@ -8,9 +8,8 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-/* Intercept args */
-
-type InterceptArgs struct {
+// Intercept holds the event arguments for an intercepted packet.
+type Intercept struct {
 	ext    *Ext
 	dir    Direction
 	seq    int
@@ -19,28 +18,31 @@ type InterceptArgs struct {
 	Packet *Packet // The intercepted packet.
 }
 
+// Deprecated: Use [Intercept].
+type InterceptArgs = Intercept
+
 // Gets the extension that intercepted this message.
-func (args *InterceptArgs) Ext() *Ext {
+func (args *Intercept) Ext() *Ext {
 	return args.ext
 }
 
 // Gets the direction of the intercepted message.
-func (args *InterceptArgs) Dir() Direction {
+func (args *Intercept) Dir() Direction {
 	return args.dir
 }
 
 // Gets the incremental packet sequence number.
-func (args *InterceptArgs) Sequence() int {
+func (args *Intercept) Sequence() int {
 	return args.seq
 }
 
 // Blocks the intercepted packet.
-func (args *InterceptArgs) Block() {
+func (args *Intercept) Block() {
 	args.block = true
 }
 
 // Deregisters the current intercept handler.
-func (args *InterceptArgs) Deregister() {
+func (args *Intercept) Deregister() {
 	args.dereg = true
 }
 
@@ -116,7 +118,7 @@ type inlineInterceptor struct {
 }
 
 // Handles the intercept logic for an inline interceptor.
-func (i *inlineInterceptor) interceptHandler(e *InterceptArgs) {
+func (i *inlineInterceptor) interceptHandler(e *Intercept) {
 	select {
 	case <-i.ctx.Done():
 		// Timed out.

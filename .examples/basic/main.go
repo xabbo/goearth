@@ -46,7 +46,7 @@ func main() {
 		log.Printf("Received %d message info", len(e.Messages))
 	})
 	// Intercepting all packets
-	ext.InterceptAll(func(e *g.InterceptArgs) {
+	ext.InterceptAll(func(e *g.Intercept) {
 		if e.Packet.Header.Is(in.Ping) {
 			log.Printf("Received ping")
 		}
@@ -58,7 +58,7 @@ func main() {
 	ext.Run()
 }
 
-func handleChat(e *g.InterceptArgs) {
+func handleChat(e *g.Intercept) {
 	// Reading data from packets
 	msg := e.Packet.ReadString()
 	action := strings.ToLower(e.Packet.Header.Name)
