@@ -28,7 +28,7 @@ func TestStringReplacements(t *testing.T) {
 			t.Logf("replacing string %q -> %q", testData[0], testData[1])
 			expectedDiff := len([]byte(testData[1])) - len([]byte(testData[0]))
 
-			pkt := &Packet{Client: clientType, Header: &NamedHeader{Header: Header{Dir: dir}}}
+			pkt := &Packet{Client: clientType, Header: Header{Dir: dir}}
 			pkt.WriteInt(31337)
 			pkt.WriteString(testData[0])
 			pkt.WriteInt(31337)

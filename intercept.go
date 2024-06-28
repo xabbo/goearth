@@ -31,6 +31,16 @@ func (args *Intercept) Dir() Direction {
 	return args.dir
 }
 
+// Name gets the name of the intercepted packet header.
+func (args *Intercept) Name() string {
+	return args.ext.headers.Name(args.Packet.Header)
+}
+
+// Is returns whether the intercepted packet header matches the specified identifier.
+func (args *Intercept) Is(id Identifier) bool {
+	return args.ext.headers.Is(args.Packet.Header, id)
+}
+
 // Gets the incremental packet sequence number.
 func (args *Intercept) Sequence() int {
 	return args.seq

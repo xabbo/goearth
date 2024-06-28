@@ -13,10 +13,10 @@ import (
 )
 
 type Packet struct {
-	Header *NamedHeader
+	Client ClientType
+	Header Header
 	Data   []byte
 	Pos    int
-	Client ClientType
 }
 
 // Parsable represents an object that can be read from a Packet.
@@ -138,13 +138,6 @@ func (p *Packet) assertCanRead(pos int, n int) {
 	}
 	if (pos + n) > len(p.Data) {
 		panic(fmt.Errorf("attempt to read past packet length"))
-	}
-}
-
-func NewPacket(hdr *NamedHeader) *Packet {
-	return &Packet{
-		Header: hdr,
-		Data:   make([]byte, 0, 8),
 	}
 }
 
