@@ -757,35 +757,6 @@ func (p *Packet) WriteString(value string) *Packet {
 	return p.WriteStringPtr(&p.Pos, value)
 }
 
-// Writes a Length at the specified position and advances it.
-//
-// Written as an int on Flash sessions, and a short on Unity sessions.
-func (p *Packet) WriteLengthPtr(pos *int, length Length) *Packet {
-	switch p.Client {
-	case Flash:
-		p.WriteIntPtr(pos, int(length))
-	case Unity, Shockwave:
-		p.WriteShortPtr(pos, int16(length))
-	default:
-		panic("Cannot write length: unknown client type.")
-	}
-	return p
-}
-
-// Writes a Length at the specified position.
-//
-// Written as an int on Flash sessions, and a short on Unity sessions.
-func (p *Packet) WriteLengthAt(pos int, length Length) *Packet {
-	return p.WriteLengthPtr(&pos, length)
-}
-
-// Writes a Length at the current position.
-//
-// Written as an int on Flash sessions, and a short on Unity sessions.
-func (p *Packet) WriteLength(length Length) *Packet {
-	return p.WriteLengthPtr(&p.Pos, length)
-}
-
 // Writes the specified values at the specified position and advances it.
 func (p *Packet) WritePtr(pos *int, values ...any) *Packet {
 	for _, value := range values {
