@@ -17,10 +17,12 @@ type Manager struct {
 	entered       g.Event[Args]
 	objectsLoaded g.Event[ObjectsArgs]
 	objectAdded   g.Event[ObjectArgs]
+	objectUpdated g.Event[ObjectUpdateArgs]
 	objectRemoved g.Event[ObjectArgs]
 	itemsAdded    g.Event[ItemsArgs]
 	itemRemoved   g.Event[ItemArgs]
 	entitiesAdded g.Event[EntitiesArgs]
+	entityUpdated g.Event[EntityUpdateArgs]
 	entityChat    g.Event[EntityChatArgs]
 	entityLeft    g.Event[EntityArgs]
 	left          g.Event[Args]
@@ -54,10 +56,12 @@ func NewManager(ext *g.Ext) *Manager {
 	ext.Intercept(in.HEIGHTMAP).With(mgr.handleHeightmap)
 	ext.Intercept(in.ACTIVEOBJECTS).With(mgr.handleActiveObjects)
 	ext.Intercept(in.ACTIVEOBJECT_ADD).With(mgr.handleActiveObjectAdd)
+	ext.Intercept(in.ACTIVEOBJECT_UPDATE).With(mgr.handleActiveObjectUpdate)
 	ext.Intercept(in.ACTIVEOBJECT_REMOVE).With(mgr.handleActiveObjectRemove)
 	ext.Intercept(in.ITEMS).With(mgr.handleItems)
 	ext.Intercept(in.REMOVEITEM).With(mgr.handleRemoveItem)
 	ext.Intercept(in.USERS).With(mgr.handleUsers)
+	ext.Intercept(in.STATUS).With(mgr.handleStatus)
 	ext.Intercept(in.CHAT, in.CHAT_2, in.CHAT_3).With(mgr.handleChat)
 	ext.Intercept(in.LOGOUT).With(mgr.handleLogout)
 	ext.Intercept(in.CLC).With(mgr.handleClc)
@@ -191,6 +195,29 @@ func (mgr *Manager) handleActiveObjectAdd(e *g.Intercept) {
 	dbg.Printf("added object %s (ID: %s)", object.Class, object.Id)
 }
 
+func (mgr *Manager) handleActiveObjectUpdate(e *g.Intercept) {
+	if !mgr.IsInRoom {
+		return
+	}
+
+	var cur Object
+	e.Packet.Read(&cur)
+
+	id, err := strconv.Atoi(cur.Id)
+	if err != nil {
+		dbg.Printf("WARNING: invalid object ID: %q", cur.Id)
+		return
+	}
+
+	if prev, ok := mgr.Objects[id]; ok {
+		mgr.Objects[id] = cur
+		mgr.objectUpdated.Dispatch(&ObjectUpdateArgs{Prev: prev, Cur: cur})
+		dbg.Printf("updated object %s (ID: %s)", cur.Class, cur.Id)
+	} else {
+		dbg.Printf("WARNING: failed to find object to update (ID: %d)", id)
+	}
+}
+
 func (mgr *Manager) handleActiveObjectRemove(e *g.Intercept) {
 	if !mgr.IsInRoom {
 		return
@@ -278,6 +305,36 @@ func (mgr *Manager) handleUsers(e *g.Intercept) {
 	})
 
 	dbg.Printf("added %d entities", len(ents))
+}
+
+func (mgr *Manager) handleStatus(e *g.Intercept) {
+	if !mgr.IsInRoom {
+		return
+	}
+
+	n := e.Packet.ReadInt()
+	for range n {
+		var status EntityStatus
+		e.Packet.Read(&status)
+		entity, ok := mgr.Entities[status.Index]
+		if !ok {
+			dbg.Printf("WARNING: failed to find entity to update (index: %d)", status.Index)
+			continue
+		}
+
+		cur := entity
+		cur.Tile = status.Tile
+		cur.Action = status.Action
+		mgr.Entities[status.Index] = cur
+
+		mgr.entityUpdated.Dispatch(&EntityUpdateArgs{
+			Prev: entity,
+			Cur:  cur,
+		})
+
+		dbg.Printf("status update for %q (index: %d): %q",
+			entity.Name, entity.Index, status.Action)
+	}
 }
 
 func (mgr *Manager) handleChat(e *g.Intercept) {

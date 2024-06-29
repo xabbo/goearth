@@ -42,15 +42,20 @@ func main() {
 
 	// Room
 	roomMgr.Entered(onEnteredRoom)
+	roomMgr.Left(onLeftRoom)
+	// Objects (floor items)
 	roomMgr.ObjectsLoaded(onObjectsLoaded)
 	roomMgr.ObjectAdded(onObjectAdded)
+	roomMgr.ObjectUpdated(onObjectUpdated)
 	roomMgr.ObjectRemoved(onObjectRemoved)
+	// Items (wall items)
 	roomMgr.ItemsAdded(onItemsAdded)
 	roomMgr.ItemRemoved(onItemRemoved)
+	// Entities
 	roomMgr.EntitiesAdded(onEntitiesEntered)
+	roomMgr.EntityUpdated(onEntityUpdated)
 	roomMgr.EntityChat(onEntityChat)
 	roomMgr.EntityLeft(onEntityLeft)
-	roomMgr.Left(onLeftRoom)
 
 	// Trade
 	tradeMgr.Updated(onTradeUpdated)
@@ -80,6 +85,10 @@ func onObjectAdded(e *room.ObjectArgs) {
 	l.room.Printf("Added floor item %s (id: %s)", e.Object.Class, e.Object.Id)
 }
 
+func onObjectUpdated(e *room.ObjectUpdateArgs) {
+	l.room.Printf("Updated floor item %s (id: %s)", e.Cur.Class, e.Cur.Id)
+}
+
 func onObjectRemoved(e *room.ObjectArgs) {
 	l.room.Printf("Removed floor item %s (id: %s)", e.Object.Class, e.Object.Id)
 }
@@ -100,6 +109,10 @@ func onEntitiesEntered(e *room.EntitiesArgs) {
 			l.room.Printf("Added %d entities", len(e.Entities))
 		}
 	}
+}
+
+func onEntityUpdated(e *room.EntityUpdateArgs) {
+	l.room.Printf("Entity update %q: %q", e.Cur.Name, e.Cur.Action)
 }
 
 func onEntityChat(e *room.EntityChatArgs) {

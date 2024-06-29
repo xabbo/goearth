@@ -90,18 +90,47 @@ func (entityType *EntityType) Parse(p *g.Packet, pos *int) {
 	*entityType = EntityType(p.ReadIntPtr(pos))
 }
 
-// Entity represents a user, pet or bot in a room.
-type Entity struct {
-	Index      int
-	Name       string
-	Figure     string
-	Gender     string
-	Custom     string
-	X, Y       int
-	Z          float64
+// Tile represents 3-dimensional coordinates in a room.
+type Tile struct {
+	X, Y int
+	Z    float64
+}
+
+type EntityBase struct {
+	Index  int
+	Name   string
+	Figure string
+	Gender string
+	Custom string
+	Tile
 	PoolFigure string
 	BadgeCode  string
 	Type       EntityType
+}
+
+// Entity represents a user, pet or bot in a room.
+type Entity struct {
+	EntityBase
+	Dir     int
+	HeadDir int
+	Action  string
+}
+
+func (ent *Entity) Parse(p *g.Packet, pos *int) {
+	*ent = Entity{}
+	p.ReadPtr(pos, &ent.EntityBase)
+}
+
+func (ent *Entity) Compose(p *g.Packet, pos *int) {
+	p.WritePtr(pos, ent.EntityBase)
+}
+
+// EntityStatus represents a status update of an entity in a room.
+type EntityStatus struct {
+	Index int
+	Tile
+	HeadDir, BodyDir int
+	Action           string
 }
 
 type ChatType int

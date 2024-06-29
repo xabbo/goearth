@@ -13,6 +13,12 @@ type ObjectArgs struct {
 	Object Object
 }
 
+// ObjectUpdateArgs holds the arguments for floor item update events.
+type ObjectUpdateArgs struct {
+	Prev Object // Prev is the previous state of the object before the update.
+	Cur  Object // Cur is the current state of the object after the update.
+}
+
 // ObjectArgs holds the arguments for floor item events involving a list of items.
 type ObjectsArgs struct {
 	Objects []Object
@@ -31,6 +37,12 @@ type ItemsArgs struct {
 // EntityArgs holds the arguments for events involving a single entity.
 type EntityArgs struct {
 	Entity Entity
+}
+
+// EntityUpdateArgs holds the arguments for entity update events.
+type EntityUpdateArgs struct {
+	Prev Entity // Prev is the previous state of the entity before the update.
+	Cur  Entity // Cur is the current state of the entity after the update.
 }
 
 // EntitiesArgs holds the arguments for events involving a list of entities.
@@ -61,6 +73,11 @@ func (mgr *Manager) ObjectAdded(handler g.EventHandler[ObjectArgs]) {
 	mgr.objectAdded.Register(handler)
 }
 
+// ObjectUpdated registers an event handler that is invoked when a floor item is updated in the room.
+func (mgr *Manager) ObjectUpdated(handler g.EventHandler[ObjectUpdateArgs]) {
+	mgr.objectUpdated.Register(handler)
+}
+
 // ObjectRemoved registers an event handler that is invoked when a floor item is removed from the room.
 func (mgr *Manager) ObjectRemoved(handler g.EventHandler[ObjectArgs]) {
 	mgr.objectRemoved.Register(handler)
@@ -81,6 +98,10 @@ func (mgr *Manager) ItemRemoved(handler g.EventHandler[ItemArgs]) {
 // If not, the entities were already in the room and are being loaded.
 func (mgr *Manager) EntitiesAdded(handler g.EventHandler[EntitiesArgs]) {
 	mgr.entitiesAdded.Register(handler)
+}
+
+func (mgr *Manager) EntityUpdated(handler g.EventHandler[EntityUpdateArgs]) {
+	mgr.entityUpdated.Register(handler)
 }
 
 // EntityChat registers an event handler that is invoked when an entity sends a chat message.
