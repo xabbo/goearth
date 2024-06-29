@@ -440,6 +440,12 @@ func (p *Packet) Read(vars ...any) {
 }
 
 func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
+	if v.CanAddr() {
+		if parsable, ok := v.Addr().Interface().(Parsable); ok {
+			parsable.Parse(p, pos)
+			return
+		}
+	}
 	switch v.Kind() {
 	case reflect.Pointer:
 		p.readReflectPtr(pos, v.Elem())
