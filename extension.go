@@ -523,22 +523,22 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		dir = Out
 	}
 
-	pktModified := &Packet{
-		Client: ext.client.Type,
-		Header: Header{dir, headerValue},
-		Data:   packetData,
-	}
-
 	intercept := &Intercept{
-		ext:    ext,
-		dir:    dir,
-		seq:    seq,
-		block:  blocked,
-		Packet: pktModified,
+		ext:   ext,
+		dir:   dir,
+		seq:   seq,
+		block: blocked,
+		Packet: &Packet{
+			Client: ext.client.Type,
+			Header: Header{dir, headerValue},
+			Data:   packetData,
+		},
 	}
 
 	ext.dispatchGlobalIntercepts(intercept)
 	ext.dispatchIntercepts(intercept)
+
+	pktModified := intercept.Packet
 
 	// Update the original packet with modified values.
 	diff := pktModified.Length() - preLen
