@@ -224,6 +224,7 @@ func (ext *Ext) Send(identifier Identifier, values ...any) {
 		Client: ext.client.Type,
 		Header: header,
 	}
+	packet.Write(values...)
 	ext.SendPacket(packet)
 }
 
