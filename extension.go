@@ -515,7 +515,8 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 
 	tailOffset := 4 + length
 	packetData := p.Data[packetOffset+2 : tailOffset]
-	tail := p.Data[tailOffset:]
+	tail := make([]byte, len(p.Data)-tailOffset)
+	copy(tail, p.Data[tailOffset:])
 	preLen := len(packetData)
 
 	dir := In
