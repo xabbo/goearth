@@ -1,8 +1,8 @@
 package main
 
 import (
-	"io"
 	"log"
+	"os"
 
 	g "xabbo.b7c.io/goearth"
 	"xabbo.b7c.io/goearth/shockwave/inventory"
@@ -30,9 +30,9 @@ var (
 
 func init() {
 	flags := log.Ltime | log.Ldate | log.Lmicroseconds | log.Lmsgprefix
-	l.inv = log.New(io.Discard, "[inventory] ", flags)
-	l.room = log.New(io.Discard, "     [room] ", flags)
-	l.trade = log.New(io.Discard, "    [trade] ", flags)
+	l.inv = log.New(os.Stdout, "[inventory] ", flags)
+	l.room = log.New(os.Stdout, "     [room] ", flags)
+	l.trade = log.New(os.Stdout, "    [trade] ", flags)
 }
 
 func main() {
