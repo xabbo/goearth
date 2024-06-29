@@ -789,6 +789,8 @@ func (p *Packet) WritePtr(pos *int, values ...any) *Packet {
 			p.WriteLongPtr(pos, int64(v))
 		case string:
 			p.WriteStringPtr(pos, v)
+		case []byte:
+			p.WriteBytesPtr(pos, v)
 		default:
 			r := reflect.ValueOf(v)
 			if r.Kind() == reflect.Pointer {
