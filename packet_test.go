@@ -5,9 +5,10 @@ import "testing"
 var testClients = []ClientType{Flash, Shockwave, Unity}
 var testDirections = []Direction{In, Out}
 
-func runTestClientsDirections(test func(clientType ClientType, dir Direction)) {
+func runTestClientsDirections(t *testing.T, test func(clientType ClientType, dir Direction)) {
 	for _, clientType := range testClients {
 		for _, direction := range testDirections {
+			t.Logf("testing client %s (%s)", clientType, direction)
 			test(clientType, direction)
 		}
 	}
@@ -22,8 +23,7 @@ func TestStringReplacements(t *testing.T) {
 		{"this is a very long string", "test"}, // long shrink
 	}
 
-	runTestClientsDirections(func(clientType ClientType, dir Direction) {
-		t.Logf("testing client %s (%s)", clientType, dir)
+	runTestClientsDirections(t, func(clientType ClientType, dir Direction) {
 		for _, testData := range stringReplaceTests {
 			t.Logf("replacing string %q -> %q", testData[0], testData[1])
 			expectedDiff := len([]byte(testData[1])) - len([]byte(testData[0]))
