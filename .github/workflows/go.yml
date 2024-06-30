@@ -35,6 +35,6 @@ jobs:
         for client in {flash,shockwave}; do
           goearth new -c $client -d $client
           pushd $client
-          go build . -v
+          go build -v .
           popd
         done
