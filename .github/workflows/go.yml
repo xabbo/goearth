@@ -32,6 +32,7 @@ jobs:
     
     - name: Test CLI
       run: |
+        mkdir -p ~/cli-tests && cd ~/cli-tests
         for client in {flash,shockwave}; do
           goearth new -c $client -d $client
           pushd $client
