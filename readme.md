@@ -11,6 +11,31 @@ Check out the [examples](.examples/) for reference.
 
 ### Getting started
 
+#### goearth CLI
+
+The `goearth` CLI can be used to quickly create new extensions.
+
+1. Install the `goearth` CLI.
+
+```sh
+go install xabbo.b7c.io/goearth/cmd/goearth@latest
+```
+
+Once it is installed, you can view the command usage with `goearth new -h`.
+
+2. Create a new extension.
+
+```sh
+goearth new -title "New extension" -desc "A new goearth extension" -author "You"
+````
+
+3. Move into the newly created extension directory: `cd "New extension"`
+4. Run the extension with `go run .` - you should see the extension appear in G-Earth's extension list.
+
+You may specify a target client with the `-c` flag, currently either `flash` (default) or `shockwave`.
+
+#### Manual
+
 1. Create a new directory and save the following code as `main.go`.
 
 ```go
@@ -31,7 +56,7 @@ func main() {
 }
 ```
 
-2. Create a new module and install dependencies:
+2. Initialize a new module and install dependencies:
 ```sh
 go mod init your-extension
 go mod tidy
@@ -42,8 +67,6 @@ go mod tidy
 ```sh
 go run .
 ```
-
-You should see your extension appear in G-Earth's extension list.
 
 Import the `in`/`out` packages to access the respective incoming/outgoing message identifiers.
 ```go
