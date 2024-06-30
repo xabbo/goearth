@@ -126,8 +126,13 @@ func (p *Packet) ensureLength(pos int, n int) {
 	if pos > len(p.Data) {
 		panic("position cannot be > packet length.")
 	}
-	if extend := (pos + n) - len(p.Data); extend > 0 {
-		p.Data = append(p.Data, make([]byte, extend)...)
+	if length := (pos + n); length > len(p.Data) {
+		if cap(p.Data) > len(p.Data) {
+			p.Data = p.Data[:min(cap(p.Data), length)]
+		}
+		if length > len(p.Data) {
+			p.Data = append(p.Data, make([]byte, length-len(p.Data))...)
+		}
 	}
 }
 
