@@ -26,3 +26,15 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+    
+    - name: Install CLI
+      run: go install ./cmd/goearth
+    
+    - name: Test CLI
+      run: |
+        for client in {flash,shockwave}; do
+          goearth new -c $client -d $client
+          pushd $client
+          go build . -v
+          popd
+        done
