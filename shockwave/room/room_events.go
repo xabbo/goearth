@@ -63,6 +63,10 @@ func (mgr *Manager) Entered(handler g.EventHandler[Args]) {
 	mgr.entered.Register(handler)
 }
 
+func (mgr *Manager) RightsUpdated(handler g.VoidHandler) {
+	mgr.rightsUpdated.Register(handler)
+}
+
 // ObjectsLoaded registers an event handler that is invoked when floor items are loaded.
 func (mgr *Manager) ObjectsLoaded(handler g.EventHandler[ObjectsArgs]) {
 	mgr.objectsLoaded.Register(handler)

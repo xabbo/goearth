@@ -15,6 +15,7 @@ type Manager struct {
 	ext *g.Ext
 
 	entered       g.Event[Args]
+	rightsUpdated g.VoidEvent
 	objectsLoaded g.Event[ObjectsArgs]
 	objectAdded   g.Event[ObjectArgs]
 	objectUpdated g.Event[ObjectUpdateArgs]
@@ -35,6 +36,8 @@ type Manager struct {
 	RoomModel string
 	RoomId    int
 	RoomInfo  *Info
+	IsOwner   bool // IsOwner indicates whether the user is the owner of the current room.
+	HasRights bool // HasRights indicates whether the user has rights in the current room.
 	Heightmap []string
 
 	Objects  map[int]Object
@@ -53,6 +56,7 @@ func NewManager(ext *g.Ext) *Manager {
 	ext.Intercept(in.FLATINFO).With(mgr.handleFlatInfo)
 	ext.Intercept(in.OPC_OK).With(mgr.handleOpcOk)
 	ext.Intercept(in.ROOM_READY).With(mgr.handleRoomReady)
+	ext.Intercept(in.ROOM_RIGHTS, in.ROOM_RIGHTS_2, in.ROOM_RIGHTS_3).With(mgr.handleRoomRights)
 	ext.Intercept(in.HEIGHTMAP).With(mgr.handleHeightmap)
 	ext.Intercept(in.ACTIVEOBJECTS).With(mgr.handleActiveObjects)
 	ext.Intercept(in.ACTIVEOBJECT_ADD).With(mgr.handleActiveObjectAdd)
@@ -79,6 +83,8 @@ func (mgr *Manager) leaveRoom() {
 		mgr.RoomModel = ""
 		mgr.RoomId = 0
 		mgr.RoomInfo = info
+		mgr.IsOwner = false
+		mgr.HasRights = false
 		mgr.Heightmap = []string{}
 		clear(mgr.Objects)
 		clear(mgr.Items)
@@ -134,6 +140,23 @@ func (mgr *Manager) handleRoomReady(e *g.Intercept) {
 		mgr.entered.Dispatch(&Args{Id: roomId})
 		dbg.Println("WARNING: failed to get room info from cache")
 		dbg.Printf("entered room (ID: %d)", roomId)
+	}
+}
+
+func (mgr *Manager) handleRoomRights(e *g.Intercept) {
+	if !mgr.IsInRoom {
+		return
+	}
+
+	switch {
+	case e.Is(in.ROOM_RIGHTS):
+		mgr.HasRights = true
+		mgr.rightsUpdated.Dispatch()
+	case e.Is(in.ROOM_RIGHTS_2):
+		mgr.HasRights = false
+		mgr.rightsUpdated.Dispatch()
+	case e.Is(in.ROOM_RIGHTS_3):
+		mgr.IsOwner = true
 	}
 }
 
