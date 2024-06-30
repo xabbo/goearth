@@ -360,10 +360,12 @@ func wrapPacket(packet *Packet) *Packet {
 		pkt.WriteShort(int16(packet.Header.Value))
 	}
 	pkt.WriteBytes(packet.Data)
-	if packet.Header.Dir == Out {
-		pkt.WriteInt(2)
-	} else {
-		pkt.WriteInt(1)
+	if packet.Client == Shockwave {
+		if packet.Header.Dir == Out {
+			pkt.WriteInt(2)
+		} else {
+			pkt.WriteInt(1)
+		}
 	}
 	return pkt
 }
