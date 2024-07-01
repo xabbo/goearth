@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net"
 	"strconv"
@@ -519,7 +520,6 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	packetData := p.Data[packetOffset+2 : tailOffset]
 	tail := make([]byte, len(p.Data)-tailOffset)
 	copy(tail, p.Data[tailOffset:])
-	preLen := len(packetData)
 
 	dir := In
 	if outgoing {
@@ -538,8 +538,23 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		},
 	}
 
+	preHeader := intercept.Packet.Header
+	preLen := len(packetData)
+	checksum := uint32(0)
+	if !modified {
+		checksum = crc32.ChecksumIEEE(intercept.Packet.Data)
+	}
+
 	ext.dispatchGlobalIntercepts(intercept)
 	ext.dispatchIntercepts(intercept)
+
+	if !modified {
+		if preHeader != intercept.Packet.Header ||
+			preLen != intercept.Packet.Length() ||
+			checksum != crc32.ChecksumIEEE(intercept.Packet.Data) {
+			modified = true
+		}
+	}
 
 	pktModified := intercept.Packet
 
