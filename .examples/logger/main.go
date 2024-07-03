@@ -26,9 +26,10 @@ var ext = g.NewExt(g.ExtInfo{
 
 var opts struct {
 	filter string
+	block string
 }
 
-var filterRegex *regexp.Regexp
+var filterRegex, blockRegex *regexp.Regexp
 
 func init() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
@@ -36,10 +37,14 @@ func init() {
 
 	g.InitFlags()
 	flag.StringVar(&opts.filter, "filter", "", "Regex to filter packet names.")
+	flag.StringVar(&opts.block, "block", "", "Regex to block packets.")
 	flag.Parse()
 
 	if opts.filter != "" {
 		filterRegex = regexp.MustCompile("(?i)" + opts.filter)
+	}
+	if opts.block != "" {
+		blockRegex = regexp.MustCompile("(?i)" + opts.block)
 	}
 }
 
@@ -57,7 +62,11 @@ func main() {
 }
 
 func handleIntercept(e *g.Intercept) {
-	name := ext.Headers().Name(e.Packet.Header)
+	name := e.Name()
+	if blockRegex != nil && blockRegex.MatchString(name) {
+		e.Block()
+		log.Printf("blocked %s", name)
+	}
 	if filterRegex != nil && !filterRegex.MatchString(name) {
 		return
 	}
