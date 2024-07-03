@@ -261,6 +261,22 @@ func (e *Ext) Recv(identifiers ...Identifier) InlineInterceptor {
 // If you do not want this behaviour, you must first call Connect before Run.
 // This method will panic if any errors other than io.EOF occur.
 func (ext *Ext) Run() {
+	if err := ext.RunE(); err != nil {
+		panic(err)
+	}
+}
+
+// Runs the extension processing loop.
+// If the extension does not have a connection, one will be initiated
+// using the port, cookie and filename command-line arguments via the flag package.
+// If you do not want this behaviour, you must first call Connect before Run.
+func (ext *Ext) RunE() (err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("unhandled error in extension loop: %s", err)
+		}
+	}()
+
 	if ext.conn == nil {
 		args := parseArgs()
 		if args.Cookie != "" {
@@ -273,7 +289,10 @@ func (ext *Ext) Run() {
 			ext.info.ShowDeleteButton = true
 		}
 		ext.info.ShowLeaveButton = true
-		ext.MustConnect(args.Port)
+		err = ext.Connect(args.Port)
+		if err != nil {
+			return
+		}
 	}
 
 	ext.info.ShowEventButton = len(ext.activated.handlers) > 0
@@ -281,7 +300,6 @@ func (ext *Ext) Run() {
 	// allocate buffer with extension protocol overhead
 	buf := make([]byte, 64+maxIncomingPacketSize)
 
-	var err error
 	for {
 		_, err = io.ReadFull(ext.conn, buf[:4])
 		if err != nil {
@@ -290,10 +308,11 @@ func (ext *Ext) Run() {
 
 		packetLength := int(binary.BigEndian.Uint32(buf[0:4]))
 		if packetLength < 2 || packetLength > len(buf) {
-			panic(fmt.Errorf("received invalid packet length: %d", packetLength))
+			err = fmt.Errorf("received invalid packet length: %d", packetLength)
+			return
 		}
 
-		_, err := io.ReadFull(ext.conn, buf[:packetLength])
+		_, err = io.ReadFull(ext.conn, buf[:packetLength])
 		if err != nil {
 			break
 		}
@@ -319,9 +338,10 @@ func (ext *Ext) Run() {
 		}
 	}
 
-	if !errors.Is(err, io.EOF) {
-		panic(err)
+	if errors.Is(err, io.EOF) {
+		err = nil
 	}
+	return
 }
 
 func (ext *Ext) registerInterceptGroup(group *interceptGroup, transient bool, sync bool) {
