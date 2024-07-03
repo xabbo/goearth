@@ -290,10 +290,14 @@ func (mgr *Manager) handleRemoveItem(e *g.Intercept) {
 		return
 	}
 
-	var item Item
-	e.Packet.Read(&item)
+	strId := e.Packet.ReadString()
+	id, err := strconv.Atoi(strId)
+	if err != nil {
+		dbg.Printf("WARNING: invalid item id: %s", strId)
+		return
+	}
 
-	if _, ok := mgr.Items[item.Id]; ok {
+	if item, ok := mgr.Items[id]; ok {
 		delete(mgr.Items, item.Id)
 		mgr.itemRemoved.Dispatch(&ItemArgs{Item: item})
 		dbg.Printf("removed item %s (ID: %d)", item.Class, item.Id)
