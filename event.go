@@ -1,5 +1,7 @@
 package goearth
 
+import "context"
+
 type VoidEvent struct {
 	handlers []VoidHandler
 }
@@ -50,6 +52,7 @@ type ConnectArgs struct {
 	Port     int
 	Client   Client
 	Messages []MsgInfo
+	Context  context.Context
 }
 
 type ConnectEvent = Event[ConnectArgs]

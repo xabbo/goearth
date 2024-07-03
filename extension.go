@@ -70,6 +70,9 @@ type Ext struct {
 	remotePort int
 	client     Client
 
+	connectionCtx      context.Context
+	closeConnectionCtx context.CancelFunc
+
 	// events
 
 	initialized  InitEvent
@@ -446,7 +449,7 @@ func (ext *Ext) handleActivated() {
 
 func (ext *Ext) handleConnectionStart(p *Packet) {
 	args := ConnectArgs{}
-	p.Read(&args)
+	p.Read(&args.Host, &args.Port, &args.Client, &args.Messages)
 
 	for _, msg := range args.Messages {
 		var dir Direction
@@ -465,12 +468,22 @@ func (ext *Ext) handleConnectionStart(p *Packet) {
 	ext.client = args.Client
 	ext.flushInterceptors()
 
+	ext.connectionCtx, ext.closeConnectionCtx = context.WithCancel(context.Background())
+	args.Context = ext.connectionCtx
+
 	ext.connected.Dispatch(&args)
 }
 
 func (ext *Ext) handleConnectionEnd() {
 	ext.isConnected = false
 	ext.clearIntercepts()
+
+	if close := ext.closeConnectionCtx; close != nil {
+		close()
+	}
+	ext.connectionCtx = nil
+	ext.closeConnectionCtx = nil
+
 	ext.disconnected.Dispatch()
 }
 
