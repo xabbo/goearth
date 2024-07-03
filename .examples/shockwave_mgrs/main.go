@@ -68,7 +68,7 @@ func main() {
 
 // Room
 
-func onEnteredRoom(e *room.Args) {
+func onEnteredRoom(e room.Args) {
 	if e.Info != nil {
 		l.room.Printf("Entered room %q (id:%d) by %s",
 			e.Info.Name, e.Info.Id, e.Info.Owner)
@@ -77,31 +77,31 @@ func onEnteredRoom(e *room.Args) {
 	}
 }
 
-func onObjectsLoaded(e *room.ObjectsArgs) {
+func onObjectsLoaded(e room.ObjectsArgs) {
 	l.room.Printf("Added %d floor item(s)", len(e.Objects))
 }
 
-func onObjectAdded(e *room.ObjectArgs) {
+func onObjectAdded(e room.ObjectArgs) {
 	l.room.Printf("Added floor item %s (id: %s)", e.Object.Class, e.Object.Id)
 }
 
-func onObjectUpdated(e *room.ObjectUpdateArgs) {
+func onObjectUpdated(e room.ObjectUpdateArgs) {
 	l.room.Printf("Updated floor item %s (id: %s)", e.Cur.Class, e.Cur.Id)
 }
 
-func onObjectRemoved(e *room.ObjectArgs) {
+func onObjectRemoved(e room.ObjectArgs) {
 	l.room.Printf("Removed floor item %s (id: %s)", e.Object.Class, e.Object.Id)
 }
 
-func onItemsAdded(e *room.ItemsArgs) {
+func onItemsAdded(e room.ItemsArgs) {
 	l.room.Printf("Added %d wall item(s)", len(e.Items))
 }
 
-func onItemRemoved(e *room.ItemArgs) {
+func onItemRemoved(e room.ItemArgs) {
 	l.room.Printf("Removed wall item %s (id: %d)", e.Item.Class, e.Item.Id)
 }
 
-func onEntitiesEntered(e *room.EntitiesArgs) {
+func onEntitiesEntered(e room.EntitiesArgs) {
 	if len(e.Entities) > 0 {
 		if e.Entered && len(e.Entities) == 1 {
 			l.room.Printf("%s entered the room", e.Entities[0].Name)
@@ -111,11 +111,11 @@ func onEntitiesEntered(e *room.EntitiesArgs) {
 	}
 }
 
-func onEntityUpdated(e *room.EntityUpdateArgs) {
+func onEntityUpdated(e room.EntityUpdateArgs) {
 	l.room.Printf("Entity update %q: %q", e.Cur.Name, e.Cur.Action)
 }
 
-func onEntityChat(e *room.EntityChatArgs) {
+func onEntityChat(e room.EntityChatArgs) {
 	symbol := ""
 	switch e.Type {
 	case room.Talk:
@@ -128,11 +128,11 @@ func onEntityChat(e *room.EntityChatArgs) {
 	l.room.Printf("[%s] %s: %s", symbol, e.Entity.Name, e.Message)
 }
 
-func onEntityLeft(e *room.EntityArgs) {
+func onEntityLeft(e room.EntityArgs) {
 	l.room.Printf("%s left the room", e.Entity.Name)
 }
 
-func onLeftRoom(e *room.Args) {
+func onLeftRoom(e room.Args) {
 	l.room.Println("Left room")
 }
 
@@ -142,13 +142,13 @@ func onInventoryUpdated() {
 	l.inv.Printf("Inventory updated (items: %d)", len(invMgr.Items()))
 }
 
-func onInventoryItemRemoved(e *inventory.ItemArgs) {
+func onInventoryItemRemoved(e inventory.ItemArgs) {
 	l.inv.Printf("Inventory item %s removed (id: %d)", e.Item.Class, e.Item.ItemId)
 }
 
 // Trade
 
-func onTradeUpdated(e *trade.Args) {
+func onTradeUpdated(e trade.Args) {
 	if e.Opened {
 		l.trade.Printf("Trade opened (%s -> %s)",
 			e.Offers.Trader().Name, e.Offers.Tradee().Name)
@@ -160,7 +160,7 @@ func onTradeUpdated(e *trade.Args) {
 	}
 }
 
-func onTradeAccepted(e *trade.AcceptArgs) {
+func onTradeAccepted(e trade.AcceptArgs) {
 	if e.Accepted {
 		l.trade.Printf("Trade accepted by %s", e.Name)
 	} else {
@@ -168,11 +168,11 @@ func onTradeAccepted(e *trade.AcceptArgs) {
 	}
 }
 
-func onTradeCompleted(e *trade.Args) {
+func onTradeCompleted(e trade.Args) {
 	l.trade.Printf("Trade completed (exchanged %d <-> %d item(s))",
 		len(e.Offers[0].Items), len(e.Offers[1].Items))
 }
 
-func onTradeClosed(e *trade.Args) {
+func onTradeClosed(e trade.Args) {
 	l.trade.Printf("Trade closed")
 }

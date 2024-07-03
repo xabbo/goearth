@@ -28,8 +28,8 @@ func init() {
 }
 
 func main() {
-	ext.Initialized(func(_ *g.InitArgs) { info.Printf("Extension initialized") })
-	ext.Connected(func(_ *g.ConnectArgs) { info.Printf("Game connection established") })
+	ext.Initialized(func(_ g.InitArgs) { info.Printf("Extension initialized") })
+	ext.Connected(func(_ g.ConnectArgs) { info.Printf("Game connection established") })
 	ext.Intercept(in.GetGuestRoomResult).With(handleRoomData)
 	ext.Intercept(in.OpenConnection).With(handleInitRoom)
 	ext.Intercept(in.Users).With(handleUsers)

@@ -60,7 +60,7 @@ func (mgr *Manager) handleTradeItems(e *g.Intercept) {
 	var offers Offers
 	e.Packet.Read(&offers)
 
-	args := &Args{Offers: offers}
+	args := Args{Offers: offers}
 
 	if mgr.Trading {
 		/*
@@ -112,7 +112,7 @@ func (mgr *Manager) handleTradeAccept(e *g.Intercept) {
 
 	if offer != nil {
 		offer.Accepted = accepted
-		mgr.accepted.Dispatch(&AcceptArgs{name, accepted})
+		mgr.accepted.Dispatch(AcceptArgs{name, accepted})
 	} else {
 		dbg.Printf("WARNING: failed to find offer for %q", name)
 	}
@@ -123,7 +123,7 @@ func (mgr *Manager) handleTradeCompleted2(e *g.Intercept) {
 		return
 	}
 
-	mgr.completed.Dispatch(&Args{Offers: mgr.Offers})
+	mgr.completed.Dispatch(Args{Offers: mgr.Offers})
 	dbg.Printf("trade completed")
 }
 
@@ -135,6 +135,6 @@ func (mgr *Manager) handleTradeClose(e *g.Intercept) {
 	offers := mgr.Offers
 	mgr.Trading = false
 	mgr.Offers = Offers{}
-	mgr.closed.Dispatch(&Args{Offers: offers})
+	mgr.closed.Dispatch(Args{Offers: offers})
 	dbg.Printf("trade closed")
 }

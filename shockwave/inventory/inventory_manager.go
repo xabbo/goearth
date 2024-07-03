@@ -60,7 +60,7 @@ func (mgr *Manager) handleRemoveStripItem(e *g.Intercept) {
 	itemId := e.Packet.ReadInt()
 	if item, ok := mgr.items[itemId]; ok {
 		delete(mgr.items, itemId)
-		mgr.itemRemoved.Dispatch(&ItemArgs{item})
+		mgr.itemRemoved.Dispatch(ItemArgs{item})
 		dbg.Printf("removed item (ID: %d)", itemId)
 	} else {
 		dbg.Printf("failed to remove item (ID: %d)", itemId)

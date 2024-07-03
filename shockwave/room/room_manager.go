@@ -90,7 +90,7 @@ func (mgr *Manager) leaveRoom() {
 		clear(mgr.Items)
 		clear(mgr.Entities)
 
-		mgr.left.Dispatch(&Args{Id: id, Info: info})
+		mgr.left.Dispatch(Args{Id: id, Info: info})
 
 		dbg.Printf("left room")
 	}
@@ -134,10 +134,10 @@ func (mgr *Manager) handleRoomReady(e *g.Intercept) {
 	mgr.IsInRoom = true
 
 	if info, ok := mgr.infoCache[roomId]; ok {
-		mgr.entered.Dispatch(&Args{Id: roomId, Info: &info})
+		mgr.entered.Dispatch(Args{Id: roomId, Info: &info})
 		dbg.Printf("entered room %q by %s (ID: %d)", info.Name, info.Owner, info.Id)
 	} else {
-		mgr.entered.Dispatch(&Args{Id: roomId})
+		mgr.entered.Dispatch(Args{Id: roomId})
 		dbg.Println("WARNING: failed to get room info from cache")
 		dbg.Printf("entered room (ID: %d)", roomId)
 	}
@@ -193,7 +193,7 @@ func (mgr *Manager) handleActiveObjects(e *g.Intercept) {
 		mgr.Objects[id] = object
 	}
 
-	mgr.objectsLoaded.Dispatch(&ObjectsArgs{Objects: objects})
+	mgr.objectsLoaded.Dispatch(ObjectsArgs{Objects: objects})
 
 	dbg.Printf("added %d objects", len(objects))
 }
@@ -213,7 +213,7 @@ func (mgr *Manager) handleActiveObjectAdd(e *g.Intercept) {
 	}
 	mgr.Objects[id] = object
 
-	mgr.objectAdded.Dispatch(&ObjectArgs{Object: object})
+	mgr.objectAdded.Dispatch(ObjectArgs{Object: object})
 
 	dbg.Printf("added object %s (ID: %s)", object.Class, object.Id)
 }
@@ -234,7 +234,7 @@ func (mgr *Manager) handleActiveObjectUpdate(e *g.Intercept) {
 
 	if prev, ok := mgr.Objects[id]; ok {
 		mgr.Objects[id] = cur
-		mgr.objectUpdated.Dispatch(&ObjectUpdateArgs{Prev: prev, Cur: cur})
+		mgr.objectUpdated.Dispatch(ObjectUpdateArgs{Prev: prev, Cur: cur})
 		dbg.Printf("updated object %s (ID: %s)", cur.Class, cur.Id)
 	} else {
 		dbg.Printf("WARNING: failed to find object to update (ID: %d)", id)
@@ -257,7 +257,7 @@ func (mgr *Manager) handleActiveObjectRemove(e *g.Intercept) {
 
 	if _, ok := mgr.Objects[id]; ok {
 		delete(mgr.Objects, id)
-		mgr.objectRemoved.Dispatch(&ObjectArgs{Object: object})
+		mgr.objectRemoved.Dispatch(ObjectArgs{Object: object})
 		dbg.Printf("removed object (ID: %s)", object.Id)
 	} else {
 		dbg.Printf("WARNING: failed to remove object (ID: %d)", id)
@@ -280,7 +280,7 @@ func (mgr *Manager) handleItems(e *g.Intercept) {
 		mgr.Items[item.Id] = item
 	}
 
-	mgr.itemsAdded.Dispatch(&ItemsArgs{Items: items})
+	mgr.itemsAdded.Dispatch(ItemsArgs{Items: items})
 
 	dbg.Printf("added %d items", len(items))
 }
@@ -299,7 +299,7 @@ func (mgr *Manager) handleRemoveItem(e *g.Intercept) {
 
 	if item, ok := mgr.Items[id]; ok {
 		delete(mgr.Items, item.Id)
-		mgr.itemRemoved.Dispatch(&ItemArgs{Item: item})
+		mgr.itemRemoved.Dispatch(ItemArgs{Item: item})
 		dbg.Printf("removed item %s (ID: %d)", item.Class, item.Id)
 	} else {
 		dbg.Printf("WARNING: failed to remove item (ID: %d)", item.Id)
@@ -326,7 +326,7 @@ func (mgr *Manager) handleUsers(e *g.Intercept) {
 		mgr.usersPacketCount++
 	}
 
-	mgr.entitiesAdded.Dispatch(&EntitiesArgs{
+	mgr.entitiesAdded.Dispatch(EntitiesArgs{
 		Entered:  mgr.usersPacketCount >= 3,
 		Entities: ents,
 	})
@@ -354,7 +354,7 @@ func (mgr *Manager) handleStatus(e *g.Intercept) {
 		cur.Action = status.Action
 		mgr.Entities[status.Index] = cur
 
-		mgr.entityUpdated.Dispatch(&EntityUpdateArgs{
+		mgr.entityUpdated.Dispatch(EntityUpdateArgs{
 			Prev: entity,
 			Cur:  cur,
 		})
@@ -383,7 +383,7 @@ func (mgr *Manager) handleChat(e *g.Intercept) {
 	}
 
 	if entity, ok := mgr.Entities[index]; ok {
-		mgr.entityChat.Dispatch(&EntityChatArgs{
+		mgr.entityChat.Dispatch(EntityChatArgs{
 			EntityArgs: EntityArgs{Entity: entity},
 			Type:       chatType,
 			Message:    msg,
@@ -417,7 +417,7 @@ func (mgr *Manager) handleLogout(e *g.Intercept) {
 
 	if entity, ok := mgr.Entities[index]; ok {
 		delete(mgr.Entities, index)
-		mgr.entityLeft.Dispatch(&EntityArgs{Entity: entity})
+		mgr.entityLeft.Dispatch(EntityArgs{Entity: entity})
 		dbg.Printf("removed entity %q (index: %d)", entity.Name, entity.Index)
 	} else {
 		dbg.Printf("WARNING: failed to remove entity (index: %d)", index)

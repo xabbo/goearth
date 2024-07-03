@@ -432,7 +432,7 @@ func (ext *Ext) handleInit(p *Packet) {
 	if p.Length() > 0 {
 		connected = p.ReadBool()
 	}
-	ext.initialized.Dispatch(&InitArgs{
+	ext.initialized.Dispatch(InitArgs{
 		Connected: connected,
 	})
 }
@@ -471,7 +471,7 @@ func (ext *Ext) handleConnectionStart(p *Packet) {
 	ext.connectionCtx, ext.closeConnectionCtx = context.WithCancel(context.Background())
 	args.Context = ext.connectionCtx
 
-	ext.connected.Dispatch(&args)
+	ext.connected.Dispatch(args)
 }
 
 func (ext *Ext) handleConnectionEnd() {

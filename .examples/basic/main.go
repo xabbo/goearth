@@ -23,7 +23,7 @@ func init() {
 
 func main() {
 	// Handling extension initialization
-	ext.Initialized(func(e *g.InitArgs) {
+	ext.Initialized(func(e g.InitArgs) {
 		log.Printf("Extension initialized (connected=%t)", e.Connected)
 	})
 
@@ -40,7 +40,7 @@ func main() {
 		}
 	})
 	// Handling game connection start
-	ext.Connected(func(e *g.ConnectArgs) {
+	ext.Connected(func(e g.ConnectArgs) {
 		log.Printf("Game connection established (%s:%d)", e.Host, e.Port)
 		log.Printf("Client %s (%s)", e.Client.Identifier, e.Client.Version)
 		log.Printf("Received %d message info", len(e.Messages))

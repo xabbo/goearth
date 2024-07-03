@@ -26,7 +26,7 @@ var ext = g.NewExt(g.ExtInfo{
 
 var opts struct {
 	filter string
-	block string
+	block  string
 }
 
 var filterRegex, blockRegex *regexp.Regexp
@@ -49,10 +49,10 @@ func init() {
 }
 
 func main() {
-	ext.Initialized(func(e *g.InitArgs) {
+	ext.Initialized(func(e g.InitArgs) {
 		log.Printf("Extension initialized (connected=%t)", e.Connected)
 	})
-	ext.Connected(func(e *g.ConnectArgs) {
+	ext.Connected(func(e g.ConnectArgs) {
 		log.Printf("Game connection established (%s:%d)", e.Host, e.Port)
 		log.Printf("Client %s (%s)", e.Client.Identifier, e.Client.Version)
 	})

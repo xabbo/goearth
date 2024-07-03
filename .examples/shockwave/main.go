@@ -36,8 +36,8 @@ type User struct {
 }
 
 func main() {
-	ext.Initialized(func(e *g.InitArgs) { log.Printf("Extension initialized") })
-	ext.Connected(func(e *g.ConnectArgs) { log.Printf("Connected (%s)", e.Host) })
+	ext.Initialized(func(e g.InitArgs) { log.Printf("Extension initialized") })
+	ext.Connected(func(e g.ConnectArgs) { log.Printf("Connected (%s)", e.Host) })
 	ext.Disconnected(func() { log.Println("Disconnected") })
 	ext.Intercept(in.OPC_OK).With(handleEnterRoom)
 	ext.Intercept(in.USERS).With(handleUsers)

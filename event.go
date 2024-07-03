@@ -18,10 +18,10 @@ func (e *VoidEvent) Dispatch() {
 }
 
 type Event[T any] struct {
-	setup    func(args *T)
+	setup    func(args T)
 	handlers []EventHandler[T]
 }
-type EventHandler[T any] func(e *T)
+type EventHandler[T any] func(e T)
 
 func (e *Event[T]) Clear() {
 	e.handlers = make([]EventHandler[T], 0)
@@ -31,7 +31,7 @@ func (e *Event[T]) Register(handlers ...EventHandler[T]) {
 	e.handlers = append(e.handlers, handlers...)
 }
 
-func (e *Event[T]) Dispatch(args *T) {
+func (e *Event[T]) Dispatch(args T) {
 	for _, handler := range e.handlers {
 		if e.setup != nil {
 			e.setup(args)
@@ -58,5 +58,5 @@ type ConnectArgs struct {
 type ConnectEvent = Event[ConnectArgs]
 type ConnectHandler = EventHandler[ConnectArgs]
 
-type InterceptEvent = Event[Intercept]
-type InterceptHandler = EventHandler[Intercept]
+type InterceptEvent = Event[*Intercept]
+type InterceptHandler = EventHandler[*Intercept]
