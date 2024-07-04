@@ -31,12 +31,5 @@ jobs:
       run: go install ./cmd/goearth
     
     - name: Test CLI
-      run: |
-        mkdir -p ./cli-tests && cd ./cli-tests
-        for client in {flash,shockwave}; do
-          goearth new -c $client -d $client
-          pushd $client
-          go work init . ../..
-          go build -v .
-          popd
-        done
+      working-directory: ./tests
+      run: chmod +x test-cli.sh && ./test-cli.sh
