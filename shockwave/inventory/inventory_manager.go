@@ -53,7 +53,7 @@ func (mgr *Manager) handleStripInfo2(e *g.Intercept) {
 	}
 	mgr.updated.Dispatch()
 
-	dbg.Printf("added %d items", len(inv.Items))
+	dbg.Printf("loaded %d items", len(inv.Items))
 }
 
 func (mgr *Manager) handleRemoveStripItem(e *g.Intercept) {

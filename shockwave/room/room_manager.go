@@ -197,7 +197,7 @@ func (mgr *Manager) handleActiveObjects(e *g.Intercept) {
 
 	mgr.objectsLoaded.Dispatch(ObjectsArgs{Objects: objects})
 
-	dbg.Printf("added %d objects", len(objects))
+	dbg.Printf("loaded %d objects", len(objects))
 }
 
 func (mgr *Manager) handleActiveObjectAdd(e *g.Intercept) {
@@ -284,7 +284,7 @@ func (mgr *Manager) handleItems(e *g.Intercept) {
 
 	mgr.itemsLoaded.Dispatch(ItemsArgs{Items: items})
 
-	dbg.Printf("added %d items", len(items))
+	dbg.Printf("loaded %d items", len(items))
 }
 
 func (mgr *Manager) handleItems2(e *g.Intercept) {
