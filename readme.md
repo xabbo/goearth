@@ -314,3 +314,34 @@ ext.Intercept(in.Chat).With(func(e *g.Intercept) {
     }()
 })
 ```
+
+### Game State Management
+
+Game state managers are currently provided for shockwave in the `xabbo.b7c.io/goearth/shockwave/profile`, `room`, `inventory`, and `trade` packages.
+These track the state of the game and allow you to subscribe to events, for example, here is a basic chatlog extension:
+
+```go
+package main
+
+import (
+    "fmt"
+
+    g "xabbo.b7c.io/goearth"
+    "xabbo.b7c.io/goearth/shockwave/room"
+)
+
+var (
+    ext = g.NewExt(g.ExtInfo{Title: "Chat log example"})
+    roomMgr = room.NewManager(ext)
+)
+
+func main() {
+    roomMgr.EntityChat(onEntityChat)
+    ext.Run()
+}
+
+func onEntityChat(e room.EntityChatArgs) {
+    fmt.Printf("%s: %s\n", e.Entity.Name, e.Message)
+}
+
+```
