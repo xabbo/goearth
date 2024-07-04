@@ -98,6 +98,19 @@ func (mgr *Manager) leaveRoom() {
 	}
 }
 
+// EntityByName gets the entity with the specified name.
+// Names are case-insensitive.
+// Returns nil if it does not exist.
+func (mgr *Manager) EntityByName(name string) *Entity {
+	// TODO add maps
+	for _, ent := range mgr.Entities {
+		if strings.EqualFold(ent.Name, name) {
+			return &ent
+		}
+	}
+	return nil
+}
+
 // handlers
 
 func (mgr *Manager) handleFlatInfo(e *g.Intercept) {
