@@ -47,34 +47,40 @@ type Item struct {
 	Type     string
 }
 
+func (item *Item) Parse(p *g.Packet, pos *int) {
+	item.ParseString(p.ReadString())
+}
+
 type Items []Item
 
 func (items *Items) Parse(p *g.Packet, pos *int) {
 	*items = []Item{}
-	for _, line := range strings.Split(p.ReadString(), "\r") {
-		if line == "" {
-			continue
-		}
+	for p.Pos < p.Length() {
+		line := strings.TrimSuffix(p.ReadString(), "\r")
 		var item Item
-		item.Parse(line)
+		item.ParseString(line)
 		*items = append(*items, item)
 	}
 }
 
-func (item *Item) Parse(s string) {
+func (item *Item) ParseString(s string) {
 	fields := strings.Split(s, "\t")
 	if len(fields) != 5 {
 		panic(fmt.Errorf("Item field length != 5: %d", len(fields)))
 	}
+
 	id, err := strconv.Atoi(fields[0])
 	if err != nil {
 		panic("failed to parse Item ID: " + fields[0])
 	}
-	item.Id = id
-	item.Class = fields[1]
-	item.Owner = fields[2]
-	item.Location = fields[3]
-	item.Type = fields[4]
+
+	*item = Item{
+		Id:       id,
+		Class:    fields[1],
+		Owner:    fields[2],
+		Location: fields[3],
+		Type:     fields[4],
+	}
 }
 
 type EntityType int

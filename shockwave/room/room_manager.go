@@ -20,7 +20,8 @@ type Manager struct {
 	objectAdded   g.Event[ObjectArgs]
 	objectUpdated g.Event[ObjectUpdateArgs]
 	objectRemoved g.Event[ObjectArgs]
-	itemsAdded    g.Event[ItemsArgs]
+	itemsLoaded   g.Event[ItemsArgs]
+	itemAdded     g.Event[ItemArgs]
 	itemRemoved   g.Event[ItemArgs]
 	entitiesAdded g.Event[EntitiesArgs]
 	entityUpdated g.Event[EntityUpdateArgs]
@@ -63,6 +64,7 @@ func NewManager(ext *g.Ext) *Manager {
 	ext.Intercept(in.ACTIVEOBJECT_UPDATE).With(mgr.handleActiveObjectUpdate)
 	ext.Intercept(in.ACTIVEOBJECT_REMOVE).With(mgr.handleActiveObjectRemove)
 	ext.Intercept(in.ITEMS).With(mgr.handleItems)
+	ext.Intercept(in.ITEMS_2).With(mgr.handleItems2)
 	ext.Intercept(in.REMOVEITEM).With(mgr.handleRemoveItem)
 	ext.Intercept(in.USERS).With(mgr.handleUsers)
 	ext.Intercept(in.STATUS).With(mgr.handleStatus)
@@ -280,9 +282,27 @@ func (mgr *Manager) handleItems(e *g.Intercept) {
 		mgr.Items[item.Id] = item
 	}
 
-	mgr.itemsAdded.Dispatch(ItemsArgs{Items: items})
+	mgr.itemsLoaded.Dispatch(ItemsArgs{Items: items})
 
 	dbg.Printf("added %d items", len(items))
+}
+
+func (mgr *Manager) handleItems2(e *g.Intercept) {
+	if !mgr.IsInRoom {
+		return
+	}
+
+	var item Item
+	e.Packet.Read(&item)
+
+	if _, exists := mgr.Items[item.Id]; exists {
+		dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
+	}
+	mgr.Items[item.Id] = item
+
+	mgr.itemAdded.Dispatch(ItemArgs{Item: item})
+
+	dbg.Printf("added item %s (ID: %d)", item.Class, item.Id)
 }
 
 func (mgr *Manager) handleRemoveItem(e *g.Intercept) {

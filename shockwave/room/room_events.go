@@ -87,9 +87,14 @@ func (mgr *Manager) ObjectRemoved(handler g.EventHandler[ObjectArgs]) {
 	mgr.objectRemoved.Register(handler)
 }
 
-// ItemsAdded registers an event handler that is invoked when wall items are loaded or added to the room.
-func (mgr *Manager) ItemsAdded(handler g.EventHandler[ItemsArgs]) {
-	mgr.itemsAdded.Register(handler)
+// ItemsLoaded registers an event handler that is invoked when wall items are loaded.
+func (mgr *Manager) ItemsLoaded(handler g.EventHandler[ItemsArgs]) {
+	mgr.itemsLoaded.Register(handler)
+}
+
+// ItemAdded registers an event handler that is invoked when a wall item is added to the room.
+func (mgr *Manager) ItemAdded(handler g.EventHandler[ItemArgs]) {
+	mgr.itemAdded.Register(handler)
 }
 
 // ItemRemoved registers an event handler that is invoked when an item is removed from the room.
