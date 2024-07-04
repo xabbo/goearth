@@ -20,11 +20,23 @@ var ext = g.NewExt(g.ExtInfo{
 })
 
 func main() {
-	ext.Initialized(func(e *g.InitArgs) { log.Println("Extension initialized") })
-	ext.Connected(func(e *g.ConnectArgs) { log.Printf("Game connected (%s)\n", e.Host) })
-	ext.Disconnected(func() { log.Println("Game disconnected") })
+	ext.Initialized(onInitialized)
+	ext.Connected(onConnected)
+	ext.Disconnected(onDisconnected)
 	ext.Intercept({{.InChatIdentifiers}}).With(handleChat)
 	ext.Run()
+}
+
+func onInitialized(e g.InitArgs) {
+	log.Println("Extension initialized")
+}
+
+func onConnected(e g.ConnectArgs) {
+	log.Printf("Game connected (%s)\n", e.Host)
+}
+
+func onDisconnected() {
+	log.Println("Game disconnected")
 }
 
 func handleChat(e *g.Intercept) {
