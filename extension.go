@@ -8,6 +8,8 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
+	"reflect"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -15,7 +17,10 @@ import (
 	"golang.org/x/exp/slices"
 
 	"xabbo.b7c.io/goearth/encoding"
+	"xabbo.b7c.io/goearth/internal/debug"
 )
+
+var dbg = debug.NewLogger("[ext]")
 
 // maximum Habbo packet sizes
 const (
@@ -200,6 +205,10 @@ func (ext *Ext) Connected(handler ConnectHandler) {
 
 // Registers an event handler that is invoked when a packet is intercepted.
 func (ext *Ext) InterceptAll(handler InterceptHandler) {
+	dbg.Printf(
+		"registered global intercept handler %s",
+		runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name(),
+	)
 	ext.globalIntercept.Register(handler)
 }
 
@@ -240,6 +249,8 @@ func (ext *Ext) SendPacket(packet *Packet) {
 		panic(fmt.Errorf("no direction specified on packet header: %+v", packet.Header))
 	}
 	ext.sendRaw(wrapPacket(packet))
+
+	dbg.Printf(">> %s", ext.headers.Name(packet.Header))
 }
 
 // Configures a new inline interceptor targeting the specified message identifiers.
@@ -368,8 +379,13 @@ func (ext *Ext) registerInterceptGroup(group *interceptGroup, transient bool, sy
 		for identifier := range group.identifiers {
 			headers[identifier] = ext.mustResolveIdentifier(identifier)
 		}
-		for _, header := range headers {
+		for identifier, header := range headers {
 			ext.intercepts[header] = append(ext.intercepts[header], group)
+			dbg.Printf(
+				"registered intercept handler %s for %s %s",
+				runtime.FuncForPC(reflect.ValueOf(group.handler).Pointer()).Name(),
+				header.Dir.String(), identifier.Name,
+			)
 		}
 	}
 	if !transient {
@@ -442,24 +458,33 @@ func (ext *Ext) handleInit(p *Packet) {
 	if p.Length() > 0 {
 		connected = p.ReadBool()
 	}
+
+	dbg.Printf("initialized (connected: %t)", connected)
+
 	ext.initialized.Dispatch(InitArgs{
 		Connected: connected,
 	})
 }
 
 func (ext *Ext) handleInfoRequest() {
+	dbg.Println("extension info requested")
+
 	res := &Packet{Header: Header{Out, gOutInfo}}
 	res.Write(&ext.info)
 	ext.sendRaw(res)
 }
 
 func (ext *Ext) handleActivated() {
+	dbg.Println("extension activated")
+
 	ext.activated.Dispatch()
 }
 
 func (ext *Ext) handleConnectionStart(p *Packet) {
 	args := ConnectArgs{}
 	p.Read(&args.Host, &args.Port, &args.Client, &args.Messages)
+
+	dbg.Printf("game connected (%s:%d on %s/%s)", args.Host, args.Port, args.Client.Identifier, args.Client.Version)
 
 	for _, msg := range args.Messages {
 		var dir Direction
@@ -493,6 +518,8 @@ func (ext *Ext) handleConnectionEnd() {
 	}
 	ext.connectionCtx = nil
 	ext.closeConnectionCtx = nil
+
+	dbg.Println("game disconnected")
 
 	ext.disconnected.Dispatch()
 }
