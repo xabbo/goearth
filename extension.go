@@ -276,7 +276,11 @@ func (ext *Ext) Run() {
 func (ext *Ext) RunE() (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			err = fmt.Errorf("unhandled error in extension loop: %s", err)
+			if recoveredErr, ok := e.(error); ok {
+				err = fmt.Errorf("unhandled error: %w", recoveredErr)
+			} else {
+				err = fmt.Errorf("unhandled error: %s", recoveredErr)
+			}
 		}
 	}()
 
@@ -298,12 +302,18 @@ func (ext *Ext) RunE() (err error) {
 		}
 	}
 
+	defer func() {
+		if conn := ext.conn; conn != nil {
+			ext.conn.Close()
+		}
+	}()
+
 	ext.info.ShowEventButton = len(ext.activated.handlers) > 0
 
 	// allocate buffer with extension protocol overhead
 	buf := make([]byte, 64+maxIncomingPacketSize)
 
-	for {
+	for err == nil {
 		_, err = io.ReadFull(ext.conn, buf[:4])
 		if err != nil {
 			break
@@ -337,7 +347,7 @@ func (ext *Ext) RunE() (err error) {
 		case gInConnectionEnd:
 			ext.handleConnectionEnd()
 		case gInPacketIntercept:
-			ext.handlePacketIntercept(&pkt)
+			err = ext.handlePacketIntercept(&pkt)
 		}
 	}
 
@@ -495,17 +505,15 @@ func (ext *Ext) clearIntercepts() {
 	}
 }
 
-func dispatchIntercept(handlers []InterceptHandler, index int, keep *int, global bool, header Header, intercept *Intercept) {
+func dispatchIntercept(handlers []InterceptHandler, index int, keep *int, global bool, header Header, intercept *Intercept) (err error) {
+	handler := handlers[index]
+
 	defer func() {
-		if err := recover(); err != nil {
-			if global {
-				panic(fmt.Errorf("error in global intercept handler: %s", err))
-			} else {
-				panic(fmt.Errorf("error in intercept handler for %v: %s", header, err))
-			}
+		if e := recover(); e != nil {
+			err = handlerErr(e, intercept.ext, header, global)
 		}
 	}()
-	handler := handlers[index]
+
 	intercept.Packet.Pos = 0
 	handler(intercept)
 	if intercept.dereg {
@@ -514,9 +522,11 @@ func dispatchIntercept(handlers []InterceptHandler, index int, keep *int, global
 		handlers[*keep] = handler
 		*keep++
 	}
+
+	return
 }
 
-func (ext *Ext) handlePacketIntercept(p *Packet) {
+func (ext *Ext) handlePacketIntercept(p *Packet) (err error) {
 	// length of intercept arguments
 	length := p.ReadInt()
 
@@ -527,7 +537,8 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		}
 	}
 	if len(tabs) != 3 {
-		panic("invalid packet intercept data (insufficient delimiter bytes)")
+		err = fmt.Errorf("invalid packet intercept data (insufficient delimiter bytes)")
+		return
 	}
 
 	blocked := p.Data[4] == '1'
@@ -578,8 +589,15 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 		checksum = crc32.ChecksumIEEE(intercept.Packet.Data)
 	}
 
-	ext.dispatchGlobalIntercepts(intercept)
-	ext.dispatchIntercepts(intercept)
+	originalHeader := intercept.Packet.Header
+	err = ext.dispatchGlobalIntercepts(originalHeader, intercept)
+	if err != nil {
+		return
+	}
+	err = ext.dispatchIntercepts(originalHeader, intercept)
+	if err != nil {
+		return
+	}
 
 	if !modified {
 		if preHeader != intercept.Packet.Header ||
@@ -608,40 +626,41 @@ func (ext *Ext) handlePacketIntercept(p *Packet) {
 	p.WriteBytesAt(tailOffset+diff, tail)
 	p.Data = p.Data[:newLen]
 	ext.sendRaw(p)
+	return
 }
 
-func (ext *Ext) dispatchGlobalIntercepts(args *Intercept) {
+func (ext *Ext) dispatchGlobalIntercepts(hdr Header, args *Intercept) (err error) {
 	ext.globalInterceptLock.Lock()
 	defer ext.globalInterceptLock.Unlock()
 
 	keep := 0
 	handlers := ext.globalIntercept.handlers
 	for i := range ext.globalIntercept.handlers {
-		dispatchIntercept(handlers, i, &keep, true, Header{}, args)
+		err = dispatchIntercept(handlers, i, &keep, true, Header{}, args)
+		if err != nil {
+			return
+		}
 	}
 	ext.globalIntercept.handlers = handlers[:keep]
+
+	return
 }
 
-func (ext *Ext) dispatchInterceptGroup(intercept *interceptGroup, args *Intercept) {
+func (ext *Ext) dispatchInterceptGroup(hdr Header, intercept *interceptGroup, args *Intercept) (err error) {
 	if intercept.dereg {
 		return
 	}
 
 	defer func() {
-		if err := recover(); err != nil {
-			header := args.Packet.Header
-			if name, ok := ext.headers.names[header]; ok {
-				panic(fmt.Errorf("error in intercept for %s %q (%d): %s",
-					header.Dir, name, header.Value, err))
-			} else {
-				panic(fmt.Errorf("error in intercept for %s (%d): %s",
-					header.Dir, header.Value, err))
-			}
+		if e := recover(); e != nil {
+			err = handlerErr(e, ext, hdr, false)
 		}
 	}()
 
 	args.Packet.Pos = 0
 	intercept.handler(args)
+
+	return
 }
 
 func (ext *Ext) snapshotIntercepts(header Header) (snapshot []*interceptGroup, exists bool) {
@@ -656,13 +675,16 @@ func (ext *Ext) snapshotIntercepts(header Header) (snapshot []*interceptGroup, e
 	return
 }
 
-func (ext *Ext) dispatchIntercepts(args *Intercept) {
+func (ext *Ext) dispatchIntercepts(hdr Header, args *Intercept) (err error) {
 	removals := []*interceptGroup{}
 
 	header := args.Packet.Header
 	if intercepts, exist := ext.snapshotIntercepts(header); exist {
 		for _, intercept := range intercepts {
-			ext.dispatchInterceptGroup(intercept, args)
+			err = ext.dispatchInterceptGroup(hdr, intercept, args)
+			if err != nil {
+				return
+			}
 			if args.dereg {
 				intercept.dereg = true
 				args.dereg = false
@@ -676,6 +698,7 @@ func (ext *Ext) dispatchIntercepts(args *Intercept) {
 	if len(removals) > 0 {
 		ext.removeIntercepts(removals...)
 	}
+	return
 }
 
 func (ext *Ext) removeIntercepts(intercepts ...*interceptGroup) {
@@ -701,4 +724,17 @@ func (ext *Ext) removeIntercepts(intercepts ...*interceptGroup) {
 			}
 		}
 	}
+}
+
+func handlerErr(e any, ext *Ext, hdr Header, global bool) error {
+	handlerType := "global intercept handler"
+	if !global {
+		if name, ok := ext.headers.names[hdr]; ok {
+			handlerType = fmt.Sprintf("%s %s handler", hdr.Dir.String(), name)
+		} else {
+			handlerType = fmt.Sprintf("%s (%d) handler", hdr.Dir.String(), hdr.Value)
+		}
+	}
+
+	return fmt.Errorf("error in %s: %s", handlerType, e)
 }
