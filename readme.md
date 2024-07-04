@@ -81,7 +81,7 @@ For the Shockwave messages, use the `xabbo.b7c.io/goearth/shockwave/in` and `out
 #### On extension initialized
 
 ```go
-ext.Initialized(func(e *g.InitArgs) {
+ext.Initialized(func(e g.InitArgs) {
     log.Printf("Extension initialized (connected=%t)", e.Connected)
 })
 ```
@@ -89,7 +89,7 @@ ext.Initialized(func(e *g.InitArgs) {
 #### On game connected
 
 ```go
-ext.Connected(func(e *g.ConnectArgs) {
+ext.Connected(func(e g.ConnectArgs) {
     log.Printf("Game connected (%s:%d)", e.Host, e.Port)
     log.Printf("Client %s (%s)", e.Client.Identifier, e.Client.Version)
 })
