@@ -8,8 +8,6 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
-	"reflect"
-	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -205,10 +203,6 @@ func (ext *Ext) Connected(handler ConnectHandler) {
 
 // Registers an event handler that is invoked when a packet is intercepted.
 func (ext *Ext) InterceptAll(handler InterceptHandler) {
-	dbg.Printf(
-		"registered global intercept handler %s",
-		runtime.FuncForPC(reflect.ValueOf(handler).Pointer()).Name(),
-	)
 	ext.globalIntercept.Register(handler)
 }
 
@@ -249,8 +243,6 @@ func (ext *Ext) SendPacket(packet *Packet) {
 		panic(fmt.Errorf("no direction specified on packet header: %+v", packet.Header))
 	}
 	ext.sendRaw(wrapPacket(packet))
-
-	dbg.Printf(">> %s", ext.headers.Name(packet.Header))
 }
 
 // Configures a new inline interceptor targeting the specified message identifiers.
@@ -379,13 +371,8 @@ func (ext *Ext) registerInterceptGroup(group *interceptGroup, transient bool, sy
 		for identifier := range group.identifiers {
 			headers[identifier] = ext.mustResolveIdentifier(identifier)
 		}
-		for identifier, header := range headers {
+		for _, header := range headers {
 			ext.intercepts[header] = append(ext.intercepts[header], group)
-			dbg.Printf(
-				"registered intercept handler %s for %s %s",
-				runtime.FuncForPC(reflect.ValueOf(group.handler).Pointer()).Name(),
-				header.Dir.String(), identifier.Name,
-			)
 		}
 	}
 	if !transient {
