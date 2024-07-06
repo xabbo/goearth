@@ -24,7 +24,7 @@ type Profile struct {
 
 func (profile *Profile) Parse(p *g.Packet, pos *int) {
 	*profile = Profile{}
-	for _, line := range strings.Split(p.ReadString(), "\r") {
+	for _, line := range strings.Split(p.ReadStringPtr(pos), "\r") {
 		kvp := strings.SplitN(line, "=", 2)
 		if len(kvp) != 2 {
 			dbg.Printf("WARNING: line split length != 2: %q", line)

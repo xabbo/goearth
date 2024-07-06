@@ -48,7 +48,7 @@ type Item struct {
 }
 
 func (item *Item) Parse(p *g.Packet, pos *int) {
-	item.ParseString(p.ReadString())
+	item.ParseString(p.ReadStringPtr(pos))
 }
 
 type Items []Item
@@ -56,7 +56,7 @@ type Items []Item
 func (items *Items) Parse(p *g.Packet, pos *int) {
 	*items = []Item{}
 	for p.Pos < p.Length() {
-		line := strings.TrimSuffix(p.ReadString(), "\r")
+		line := strings.TrimSuffix(p.ReadStringPtr(pos), "\r")
 		var item Item
 		item.ParseString(line)
 		*items = append(*items, item)

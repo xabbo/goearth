@@ -11,7 +11,7 @@ type Inventory struct {
 
 func (inv *Inventory) Parse(p *g.Packet, pos *int) {
 	*inv = Inventory{}
-	p.Read(&inv.Items)
+	p.ReadPtr(pos, &inv.Items)
 }
 
 type ItemType string
@@ -44,8 +44,8 @@ func (item *Item) Parse(p *g.Packet, pos *int) {
 	p.ReadPtr(pos, &item.ItemId, &item.Pos, &item.Type, &item.Id, &item.Class)
 	switch item.Type {
 	case "S":
-		p.Read(&item.DimX, &item.DimY, &item.Colors)
+		p.ReadPtr(pos, &item.DimX, &item.DimY, &item.Colors)
 	case "I":
-		p.Read(&item.Props)
+		p.ReadPtr(pos, &item.Props)
 	}
 }
