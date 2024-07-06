@@ -21,5 +21,8 @@ func (offers Offers) Tradee() Offer {
 type Offer struct {
 	Name     string
 	Accepted bool
-	Items    []inventory.Item
+	Items    []Item
 }
+
+// Item is a type alias for [inventory.Item].
+type Item = inventory.Item
