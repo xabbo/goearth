@@ -148,6 +148,10 @@ func (entityType *EntityType) Parse(p *g.Packet, pos *int) {
 	*entityType = EntityType(p.ReadIntPtr(pos))
 }
 
+func (entityType EntityType) Compose(p *g.Packet, pos *int) {
+	p.WriteIntPtr(pos, int(entityType))
+}
+
 // Point represents 2-dimensional coordinates in a room.
 type Point struct {
 	X, Y int
