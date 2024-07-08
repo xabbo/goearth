@@ -26,7 +26,7 @@ type Info struct {
 
 // Object represents a floor item in a room.
 type Object struct {
-	Id            string
+	Id            int
 	Class         string
 	X, Y          int
 	Width, Height int
@@ -36,6 +36,21 @@ type Object struct {
 	RuntimeData   string
 	Extra         int
 	StuffData     string
+}
+
+func (obj *Object) Parse(p *g.Packet, pos *int) {
+	strId := p.ReadStringPtr(pos)
+	id, err := strconv.Atoi(strId)
+	if err != nil {
+		panic(fmt.Errorf("invalid object ID: %q", strId))
+	}
+
+	*obj = Object{Id: id}
+	p.ReadPtr(pos, &obj.Class,
+		&obj.X, &obj.Y, &obj.Width, &obj.Height,
+		&obj.Direction, &obj.Z,
+		&obj.Colors, &obj.RuntimeData,
+		&obj.Extra, &obj.StuffData)
 }
 
 // Item represents a wall item in a room.

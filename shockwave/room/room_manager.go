@@ -200,12 +200,7 @@ func (mgr *Manager) handleActiveObjects(e *g.Intercept) {
 	e.Packet.Read(&objects)
 
 	for _, object := range objects {
-		id, err := strconv.Atoi(object.Id)
-		if err != nil {
-			dbg.Printf("WARNING: invalid object ID: %q", object.Id)
-			continue
-		}
-		mgr.Objects[id] = object
+		mgr.Objects[object.Id] = object
 	}
 
 	mgr.objectsLoaded.Dispatch(ObjectsArgs{Objects: objects})
@@ -221,16 +216,11 @@ func (mgr *Manager) handleActiveObjectAdd(e *g.Intercept) {
 	var object Object
 	e.Packet.Read(&object)
 
-	id, err := strconv.Atoi(object.Id)
-	if err != nil {
-		dbg.Printf("WARNING: invalid object ID: %q", object.Id)
-		return
-	}
-	mgr.Objects[id] = object
+	mgr.Objects[object.Id] = object
 
 	mgr.objectAdded.Dispatch(ObjectArgs{Object: object})
 
-	dbg.Printf("added object %s (ID: %s)", object.Class, object.Id)
+	dbg.Printf("added object %s (ID: %d)", object.Class, object.Id)
 }
 
 func (mgr *Manager) handleActiveObjectUpdate(e *g.Intercept) {
@@ -241,18 +231,12 @@ func (mgr *Manager) handleActiveObjectUpdate(e *g.Intercept) {
 	var cur Object
 	e.Packet.Read(&cur)
 
-	id, err := strconv.Atoi(cur.Id)
-	if err != nil {
-		dbg.Printf("WARNING: invalid object ID: %q", cur.Id)
-		return
-	}
-
-	if prev, ok := mgr.Objects[id]; ok {
-		mgr.Objects[id] = cur
+	if prev, ok := mgr.Objects[cur.Id]; ok {
+		mgr.Objects[cur.Id] = cur
 		mgr.objectUpdated.Dispatch(ObjectUpdateArgs{Prev: prev, Cur: cur})
-		dbg.Printf("updated object %s (ID: %s)", cur.Class, cur.Id)
+		dbg.Printf("updated object %s (ID: %d)", cur.Class, cur.Id)
 	} else {
-		dbg.Printf("WARNING: failed to find object to update (ID: %d)", id)
+		dbg.Printf("WARNING: failed to find object to update (ID: %d)", cur.Id)
 	}
 }
 
@@ -264,18 +248,12 @@ func (mgr *Manager) handleActiveObjectRemove(e *g.Intercept) {
 	var object Object
 	e.Packet.Read(&object)
 
-	id, err := strconv.Atoi(object.Id)
-	if err != nil {
-		dbg.Printf("WARNING: invalid object ID: %q", object.Id)
-		return
-	}
-
-	if _, ok := mgr.Objects[id]; ok {
-		delete(mgr.Objects, id)
+	if _, ok := mgr.Objects[object.Id]; ok {
+		delete(mgr.Objects, object.Id)
 		mgr.objectRemoved.Dispatch(ObjectArgs{Object: object})
-		dbg.Printf("removed object (ID: %s)", object.Id)
+		dbg.Printf("removed object (ID: %d)", object.Id)
 	} else {
-		dbg.Printf("WARNING: failed to remove object (ID: %d)", id)
+		dbg.Printf("WARNING: failed to remove object (ID: %d)", object.Id)
 	}
 }
 
