@@ -196,7 +196,7 @@ type Tile struct {
 }
 
 func (tile Tile) String() string {
-	return strconv.Itoa(tile.X) + ", " + strconv.Itoa(tile.Y) + ", " + strconv.FormatFloat(tile.Z, 'f', -1, 64)
+	return strconv.Itoa(tile.X) + ", " + strconv.Itoa(tile.Y) + ", " + strconv.FormatFloat(tile.Z, 'f', 2, 64)
 }
 
 // ToPoint converts the Tile to a Point.
