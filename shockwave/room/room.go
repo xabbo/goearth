@@ -38,6 +38,10 @@ type Object struct {
 	StuffData     string
 }
 
+func (obj Object) String() string {
+	return obj.Class + "(" + strconv.Itoa(obj.Id) + ")"
+}
+
 func (obj *Object) Parse(p *g.Packet, pos *int) {
 	strId := p.ReadStringPtr(pos)
 	id, err := strconv.Atoi(strId)
@@ -60,6 +64,10 @@ type Item struct {
 	Owner    string
 	Location string
 	Type     string
+}
+
+func (item Item) String() string {
+	return item.Class + "(" + strconv.Itoa(item.Id) + ")"
 }
 
 func (item *Item) Parse(p *g.Packet, pos *int) {
@@ -144,6 +152,21 @@ const (
 	PrivateBot
 )
 
+func (entityType EntityType) String() string {
+	switch entityType {
+	case User:
+		return "user"
+	case Pet:
+		return "pet"
+	case PublicBot:
+		return "public bot"
+	case PrivateBot:
+		return "private bot"
+	default:
+		return strconv.Itoa(int(entityType))
+	}
+}
+
 func (entityType *EntityType) Parse(p *g.Packet, pos *int) {
 	*entityType = EntityType(p.ReadIntPtr(pos))
 }
@@ -157,6 +180,10 @@ type Point struct {
 	X, Y int
 }
 
+func (pt Point) String() string {
+	return strconv.Itoa(pt.X) + ", " + strconv.Itoa(pt.Y)
+}
+
 // ToTile converts the Point to a Tile with Z = 0.
 func (pt Point) ToTile() Tile {
 	return Tile{pt.X, pt.Y, 0}
@@ -166,6 +193,10 @@ func (pt Point) ToTile() Tile {
 type Tile struct {
 	X, Y int
 	Z    float64
+}
+
+func (tile Tile) String() string {
+	return strconv.Itoa(tile.X) + ", " + strconv.Itoa(tile.Y) + ", " + strconv.FormatFloat(tile.Z, 'f', -1, 64)
 }
 
 // ToPoint converts the Tile to a Point.
@@ -191,6 +222,10 @@ type Entity struct {
 	Dir     int
 	HeadDir int
 	Action  string
+}
+
+func (ent Entity) String() string {
+	return ent.Name
 }
 
 func (ent *Entity) Parse(p *g.Packet, pos *int) {

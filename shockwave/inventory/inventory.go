@@ -1,6 +1,8 @@
 package inventory
 
 import (
+	"strconv"
+
 	g "xabbo.b7c.io/goearth"
 )
 
@@ -37,6 +39,10 @@ type Item struct {
 	DimX, DimY int
 	Colors     string
 	Props      string
+}
+
+func (item Item) String() string {
+	return item.Class + "(" + strconv.Itoa(item.ItemId) + ")"
 }
 
 func (item *Item) Parse(p *g.Packet, pos *int) {
