@@ -20,6 +20,7 @@ type Manager struct {
 	objectAdded   g.Event[ObjectArgs]
 	objectUpdated g.Event[ObjectUpdateArgs]
 	objectRemoved g.Event[ObjectArgs]
+	slide         g.Event[SlideArgs]
 	itemsLoaded   g.Event[ItemsArgs]
 	itemAdded     g.Event[ItemArgs]
 	itemRemoved   g.Event[ItemArgs]
@@ -63,6 +64,7 @@ func NewManager(ext *g.Ext) *Manager {
 	ext.Intercept(in.ACTIVEOBJECT_ADD).With(mgr.handleActiveObjectAdd)
 	ext.Intercept(in.ACTIVEOBJECT_UPDATE).With(mgr.handleActiveObjectUpdate)
 	ext.Intercept(in.ACTIVEOBJECT_REMOVE).With(mgr.handleActiveObjectRemove)
+	ext.Intercept(in.SLIDEOBJECTBUNDLE).With(mgr.handleSlideObjectBundle)
 	ext.Intercept(in.ITEMS).With(mgr.handleItems)
 	ext.Intercept(in.ITEMS_2).With(mgr.handleItems2)
 	ext.Intercept(in.REMOVEITEM).With(mgr.handleRemoveItem)
@@ -255,6 +257,68 @@ func (mgr *Manager) handleActiveObjectRemove(e *g.Intercept) {
 	} else {
 		dbg.Printf("WARNING: failed to remove object (ID: %d)", object.Id)
 	}
+}
+
+func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
+	if !mgr.IsInRoom {
+		return
+	}
+
+	var bundle SlideObjectBundle
+	e.Packet.Read(&bundle)
+
+	var pSource *Object
+	if bundle.RollerId != 0 {
+		if source, ok := mgr.Objects[bundle.RollerId]; ok {
+			pSource = &source
+		} else {
+			dbg.Printf("failed to find source (ID: %d)", bundle.RollerId)
+		}
+	}
+
+	args := SlideArgs{
+		From:          bundle.From,
+		To:            bundle.To,
+		Source:        pSource,
+		SlideMoveType: bundle.SlideMoveType,
+	}
+
+	for _, bundleObj := range bundle.Objects {
+		obj, ok := mgr.Objects[bundleObj.Id]
+		if ok {
+			obj.X = args.To.X
+			obj.Y = args.To.Y
+			obj.Z = bundleObj.ToZ
+			mgr.Objects[obj.Id] = obj
+			args.Objects = append(args.Objects, SlideObjectArgs{
+				Object: obj,
+				FromZ:  bundleObj.FromZ,
+				ToZ:    bundleObj.ToZ,
+			})
+		} else {
+			dbg.Printf("failed to find object (ID: %d)", bundleObj.Id)
+		}
+	}
+
+	if bundle.SlideMoveType != SlideMoveTypeNone {
+		if ent, ok := mgr.Entities[bundle.Entity.Id]; ok {
+			ent.X = bundle.To.X
+			ent.Y = bundle.To.Y
+			ent.Z = bundle.Entity.ToZ
+			mgr.Entities[ent.Index] = ent
+			args.Entity = &SlideEntityArgs{
+				Entity: ent,
+				FromZ:  bundle.Entity.FromZ,
+				ToZ:    bundle.Entity.ToZ,
+			}
+		} else {
+			dbg.Printf("failed to find entity (ID: %d)", bundle.Entity.Id)
+		}
+	}
+
+	mgr.slide.Dispatch(args)
+
+	dbg.Printf("processed slide object bundle (%d objects, with entity: %t)", len(args.Objects), args.Entity != nil)
 }
 
 func (mgr *Manager) handleItems(e *g.Intercept) {

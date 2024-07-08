@@ -24,6 +24,30 @@ type ObjectsArgs struct {
 	Objects []Object
 }
 
+// SlideArgs holds the arguments for floor item and entity slide events.
+type SlideArgs struct {
+	From, To Point
+	Objects []SlideObjectArgs
+	// Source contains the object that caused the slide, if it is available.
+	Source *Object
+	SlideMoveType SlideMoveType
+	// Entity contains arguments for an entity slide event, if an entity is involved in this event.
+	Entity *SlideEntityArgs
+}
+
+// SlideObjectArgs holds the arguments for floor item slide events.
+type SlideObjectArgs struct {
+	// Object contains the state of the object after the slide update.
+	Object Object
+	FromZ, ToZ float64
+}
+
+type SlideEntityArgs struct {
+	// Entity contains the state of the entity after the slide update.
+	Entity Entity
+	FromZ, ToZ float64
+}
+
 // ItemArgs holds the arguments for wall item events involing a single item.
 type ItemArgs struct {
 	Item Item
@@ -85,6 +109,11 @@ func (mgr *Manager) ObjectUpdated(handler g.EventHandler[ObjectUpdateArgs]) {
 // ObjectRemoved registers an event handler that is invoked when a floor item is removed from the room.
 func (mgr *Manager) ObjectRemoved(handler g.EventHandler[ObjectArgs]) {
 	mgr.objectRemoved.Register(handler)
+}
+
+// Slide registers an event handler that is invoked when floor items or an entity slides, e.g. along a roller.
+func (mgr *Manager) Slide(handler g.EventHandler[SlideArgs]) {
+	mgr.slide.Register(handler)
 }
 
 // ItemsLoaded registers an event handler that is invoked when wall items are loaded.
