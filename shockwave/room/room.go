@@ -98,6 +98,43 @@ func (item *Item) ParseString(s string) {
 	}
 }
 
+type SlideObjectBundle struct {
+	From, To      Point
+	Objects       []SlideObject
+	RollerId      int
+	SlideMoveType SlideMoveType
+	Entity        SlideObject
+}
+
+func (bundle *SlideObjectBundle) Parse(p *g.Packet, pos *int) {
+	*bundle = SlideObjectBundle{}
+	p.ReadPtr(pos, &bundle.From, &bundle.To, &bundle.Objects, &bundle.RollerId)
+	if p.Pos < p.Length() {
+		fmt.Println(p.Pos, p.Length())
+		p.ReadPtr(pos, &bundle.SlideMoveType)
+		if bundle.SlideMoveType == SlideMoveTypeMove || bundle.SlideMoveType == SlideMoveTypeSlide {
+			p.ReadPtr(pos, &bundle.Entity)
+		}
+	}
+}
+
+type SlideObject struct {
+	Id         int
+	FromZ, ToZ float64
+}
+
+type SlideMoveType int
+
+const (
+	SlideMoveTypeNone SlideMoveType = iota
+	SlideMoveTypeMove
+	SlideMoveTypeSlide
+)
+
+func (slideType *SlideMoveType) Parse(p *g.Packet, pos *int) {
+	*slideType = SlideMoveType(p.ReadIntPtr(pos))
+}
+
 type EntityType int
 
 const (
