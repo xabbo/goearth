@@ -26,8 +26,8 @@ type ObjectsArgs struct {
 
 // SlideArgs holds the arguments for floor item and entity slide events.
 type SlideArgs struct {
-	From, To Point
-	Objects  []SlideObjectArgs
+	From, To     Point
+	ObjectSlides []SlideObjectArgs
 	// Source contains the object that caused the slide, if it is available.
 	Source        *Object
 	SlideMoveType SlideMoveType

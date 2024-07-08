@@ -290,7 +290,7 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 			obj.Y = args.To.Y
 			obj.Z = bundleObj.ToZ
 			mgr.Objects[obj.Id] = obj
-			args.Objects = append(args.Objects, SlideObjectArgs{
+			args.ObjectSlides = append(args.ObjectSlides, SlideObjectArgs{
 				Object: obj,
 				From: Tile{
 					X: bundle.From.X,
@@ -334,7 +334,7 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 
 	mgr.slide.Dispatch(args)
 
-	dbg.Printf("processed slide object bundle (%d objects, with entity: %t)", len(args.Objects), args.EntitySlide != nil)
+	dbg.Printf("processed slide object bundle (%d objects, with entity: %t)", len(args.ObjectSlides), args.EntitySlide != nil)
 }
 
 func (mgr *Manager) handleItems(e *g.Intercept) {
