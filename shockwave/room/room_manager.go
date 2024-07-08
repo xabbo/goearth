@@ -23,6 +23,7 @@ type Manager struct {
 	slide         g.Event[SlideArgs]
 	itemsLoaded   g.Event[ItemsArgs]
 	itemAdded     g.Event[ItemArgs]
+	itemUpdated   g.Event[ItemUpdateArgs]
 	itemRemoved   g.Event[ItemArgs]
 	entitiesAdded g.Event[EntitiesArgs]
 	entityUpdated g.Event[EntityUpdateArgs]
@@ -66,7 +67,7 @@ func NewManager(ext *g.Ext) *Manager {
 	ext.Intercept(in.ACTIVEOBJECT_REMOVE).With(mgr.handleActiveObjectRemove)
 	ext.Intercept(in.SLIDEOBJECTBUNDLE).With(mgr.handleSlideObjectBundle)
 	ext.Intercept(in.ITEMS).With(mgr.handleItems)
-	ext.Intercept(in.ITEMS_2).With(mgr.handleItems2)
+	ext.Intercept(in.ITEMS_2, in.UPDATEITEM).With(mgr.handleAddOrUpdateItem)
 	ext.Intercept(in.REMOVEITEM).With(mgr.handleRemoveItem)
 	ext.Intercept(in.USERS).With(mgr.handleUsers)
 	ext.Intercept(in.STATUS).With(mgr.handleStatus)
@@ -358,7 +359,7 @@ func (mgr *Manager) handleItems(e *g.Intercept) {
 	dbg.Printf("loaded %d items", len(items))
 }
 
-func (mgr *Manager) handleItems2(e *g.Intercept) {
+func (mgr *Manager) handleAddOrUpdateItem(e *g.Intercept) {
 	if !mgr.IsInRoom {
 		return
 	}
@@ -366,14 +367,23 @@ func (mgr *Manager) handleItems2(e *g.Intercept) {
 	var item Item
 	e.Packet.Read(&item)
 
-	if _, exists := mgr.Items[item.Id]; exists {
+	add := e.Is(in.ITEMS_2)
+	pre, exists := mgr.Items[item.Id]
+	if add && exists {
 		dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
+	} else if !add && !exists {
+		dbg.Printf("WARNING: failed to find item to update (ID: %d)", item.Id)
+		return
 	}
 	mgr.Items[item.Id] = item
 
-	mgr.itemAdded.Dispatch(ItemArgs{Item: item})
-
-	dbg.Printf("added item %s (ID: %d)", item.Class, item.Id)
+	if add {
+		mgr.itemAdded.Dispatch(ItemArgs{Item: item})
+		dbg.Printf("added item %s (ID: %d)", item.Class, item.Id)
+	} else {
+		mgr.itemUpdated.Dispatch(ItemUpdateArgs{Pre: pre, Item: item})
+		dbg.Printf("updated item %s (ID: %d)", item.Class, item.Id)
+	}
 }
 
 func (mgr *Manager) handleRemoveItem(e *g.Intercept) {

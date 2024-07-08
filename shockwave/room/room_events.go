@@ -53,6 +53,12 @@ type ItemArgs struct {
 	Item Item
 }
 
+// ItemUpdateArgs holds the arguments for wall item update events.
+type ItemUpdateArgs struct {
+	Pre  Item // Pre is the previous state of the item before the update.
+	Item Item // Item is the current state of the item after the update.
+}
+
 // ItemsArgs holds the arguments for wall item events involing a list of items.
 type ItemsArgs struct {
 	Items []Item
@@ -124,6 +130,11 @@ func (mgr *Manager) ItemsLoaded(handler g.EventHandler[ItemsArgs]) {
 // ItemAdded registers an event handler that is invoked when a wall item is added to the room.
 func (mgr *Manager) ItemAdded(handler g.EventHandler[ItemArgs]) {
 	mgr.itemAdded.Register(handler)
+}
+
+// ItemUpdated registers an event handler that is invoked when a wall item is updated in the room.
+func (mgr *Manager) ItemUpdated(handler g.EventHandler[ItemUpdateArgs]) {
+	mgr.itemUpdated.Register(handler)
 }
 
 // ItemRemoved registers an event handler that is invoked when an item is removed from the room.
