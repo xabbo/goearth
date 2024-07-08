@@ -111,10 +111,25 @@ func (entityType *EntityType) Parse(p *g.Packet, pos *int) {
 	*entityType = EntityType(p.ReadIntPtr(pos))
 }
 
+// Point represents 2-dimensional coordinates in a room.
+type Point struct {
+	X, Y int
+}
+
+// ToTile converts the Point to a Tile with Z = 0.
+func (pt Point) ToTile() Tile {
+	return Tile{pt.X, pt.Y, 0}
+}
+
 // Tile represents 3-dimensional coordinates in a room.
 type Tile struct {
 	X, Y int
 	Z    float64
+}
+
+// ToPoint converts the Tile to a Point.
+func (tile Tile) ToPoint() Point {
+	return Point{tile.X, tile.Y}
 }
 
 type EntityBase struct {
