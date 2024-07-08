@@ -27,25 +27,25 @@ type ObjectsArgs struct {
 // SlideArgs holds the arguments for floor item and entity slide events.
 type SlideArgs struct {
 	From, To Point
-	Objects []SlideObjectArgs
+	Objects  []SlideObjectArgs
 	// Source contains the object that caused the slide, if it is available.
-	Source *Object
+	Source        *Object
 	SlideMoveType SlideMoveType
-	// Entity contains arguments for an entity slide event, if an entity is involved in this event.
-	Entity *SlideEntityArgs
+	// EntitySlide contains arguments for an entity slide event, if an entity is involved in this event.
+	EntitySlide *SlideEntityArgs
 }
 
 // SlideObjectArgs holds the arguments for floor item slide events.
 type SlideObjectArgs struct {
 	// Object contains the state of the object after the slide update.
-	Object Object
-	FromZ, ToZ float64
+	Object   Object
+	From, To Tile
 }
 
 type SlideEntityArgs struct {
 	// Entity contains the state of the entity after the slide update.
-	Entity Entity
-	FromZ, ToZ float64
+	Entity   Entity
+	From, To Tile
 }
 
 // ItemArgs holds the arguments for wall item events involing a single item.

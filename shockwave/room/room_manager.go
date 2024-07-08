@@ -292,8 +292,16 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 			mgr.Objects[obj.Id] = obj
 			args.Objects = append(args.Objects, SlideObjectArgs{
 				Object: obj,
-				FromZ:  bundleObj.FromZ,
-				ToZ:    bundleObj.ToZ,
+				From: Tile{
+					X: bundle.From.X,
+					Y: bundle.From.Y,
+					Z: bundleObj.FromZ,
+				},
+				To: Tile{
+					X: bundle.To.X,
+					Y: bundle.To.Y,
+					Z: bundleObj.ToZ,
+				},
 			})
 		} else {
 			dbg.Printf("failed to find object (ID: %d)", bundleObj.Id)
@@ -306,10 +314,18 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 			ent.Y = bundle.To.Y
 			ent.Z = bundle.Entity.ToZ
 			mgr.Entities[ent.Index] = ent
-			args.Entity = &SlideEntityArgs{
+			args.EntitySlide = &SlideEntityArgs{
 				Entity: ent,
-				FromZ:  bundle.Entity.FromZ,
-				ToZ:    bundle.Entity.ToZ,
+				From: Tile{
+					X: bundle.From.X,
+					Y: bundle.From.Y,
+					Z: bundle.Entity.FromZ,
+				},
+				To: Tile{
+					X: bundle.To.X,
+					Y: bundle.To.Y,
+					Z: bundle.Entity.ToZ,
+				},
 			}
 		} else {
 			dbg.Printf("failed to find entity (ID: %d)", bundle.Entity.Id)
@@ -318,7 +334,7 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 
 	mgr.slide.Dispatch(args)
 
-	dbg.Printf("processed slide object bundle (%d objects, with entity: %t)", len(args.Objects), args.Entity != nil)
+	dbg.Printf("processed slide object bundle (%d objects, with entity: %t)", len(args.Objects), args.EntitySlide != nil)
 }
 
 func (mgr *Manager) handleItems(e *g.Intercept) {
