@@ -118,7 +118,6 @@ func (bundle *SlideObjectBundle) Parse(p *g.Packet, pos *int) {
 	*bundle = SlideObjectBundle{}
 	p.ReadPtr(pos, &bundle.From, &bundle.To, &bundle.Objects, &bundle.RollerId)
 	if p.Pos < p.Length() {
-		fmt.Println(p.Pos, p.Length())
 		p.ReadPtr(pos, &bundle.SlideMoveType)
 		if bundle.SlideMoveType == SlideMoveTypeMove || bundle.SlideMoveType == SlideMoveTypeSlide {
 			p.ReadPtr(pos, &bundle.Entity)
