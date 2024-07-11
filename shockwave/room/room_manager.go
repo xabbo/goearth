@@ -398,6 +398,7 @@ func (mgr *Manager) clearObjects() {
 	mgr.mtxObjs.Lock()
 	defer mgr.mtxObjs.Unlock()
 	clear(mgr.objects)
+	mgr.objects = map[int]Object{}
 }
 
 func (mgr *Manager) addItems(load bool, items []Item) {
@@ -451,6 +452,7 @@ func (mgr *Manager) clearItems() {
 	mgr.mtxItems.Lock()
 	defer mgr.mtxItems.Unlock()
 	clear(mgr.items)
+	mgr.items = map[int]Item{}
 }
 
 func (mgr *Manager) addEntities(ents []Entity) {
@@ -505,6 +507,7 @@ func (mgr *Manager) clearEntities() {
 	mgr.mtxEnts.Lock()
 	defer mgr.mtxEnts.Unlock()
 	clear(mgr.entities)
+	mgr.entities = map[int]Entity{}
 }
 
 // handlers
