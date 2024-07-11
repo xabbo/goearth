@@ -141,6 +141,11 @@ func (mgr *Manager) Objects(yield func(obj Object) bool) {
 	}
 }
 
+// ObjectCount returns the number of objects in the room.
+func (mgr *Manager) ObjectCount() int {
+	return len(mgr.objects)
+}
+
 // Item gets a wall item in the room by its ID.
 // It returns nil if the item was not found.
 func (mgr *Manager) Item(id int) *Item {
@@ -164,6 +169,11 @@ func (mgr *Manager) Items(yield func(item Item) bool) {
 			break
 		}
 	}
+}
+
+// ItemCount returns the number of items in the room.
+func (mgr *Manager) ItemCount() int {
+	return len(mgr.items)
 }
 
 // Entity gets an entity in the room by its index.
@@ -205,6 +215,11 @@ func (mgr *Manager) Entities(yield func(ent Entity) bool) {
 			break
 		}
 	}
+}
+
+// EntityCount returns the number of entities in the room.
+func (mgr *Manager) EntityCount() int {
+	return len(mgr.entities)
 }
 
 func (mgr *Manager) enterRoom(model string, id int) (info Info, ok bool) {
