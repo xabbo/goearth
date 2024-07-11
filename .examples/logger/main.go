@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	g "xabbo.b7c.io/goearth"
+	"xabbo.b7c.io/goearth/shockwave/out"
 )
 
 const (
@@ -68,6 +69,9 @@ func handleIntercept(e *g.Intercept) {
 		log.Printf("blocked %s", name)
 	}
 	if filterRegex != nil && !filterRegex.MatchString(name) {
+		return
+	}
+	if e.Is(out.TRY_LOGIN) {
 		return
 	}
 
