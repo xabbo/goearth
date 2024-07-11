@@ -3,6 +3,7 @@ package room
 import (
 	"strconv"
 	"strings"
+	"sync"
 
 	g "xabbo.b7c.io/goearth"
 	"xabbo.b7c.io/goearth/internal/debug"
@@ -31,30 +32,40 @@ type Manager struct {
 	entityLeft    g.Event[EntityArgs]
 	left          g.Event[Args]
 
+	mtxCache  *sync.RWMutex
 	infoCache map[int]Info
 
 	usersPacketCount int
 
-	IsInRoom  bool
-	RoomModel string
-	RoomId    int
-	RoomInfo  *Info
-	IsOwner   bool // IsOwner indicates whether the user is the owner of the current room.
-	HasRights bool // HasRights indicates whether the user has rights in the current room.
-	Heightmap []string
+	mtxRoom   *sync.RWMutex
+	isInRoom  bool
+	roomId    int
+	roomModel string
+	roomInfo  *Info
+	isOwner   bool // IsOwner indicates whether the user is the owner of the current room.
+	hasRights bool // HasRights indicates whether the user has rights in the current room.
+	heightmap []string
 
-	Objects  map[int]Object
-	Items    map[int]Item
-	Entities map[int]Entity
+	mtxObjs  *sync.RWMutex
+	objects  map[int]Object
+	mtxItems *sync.RWMutex
+	items    map[int]Item
+	mtxEnts  *sync.RWMutex
+	entities map[int]Entity
 }
 
 func NewManager(ext *g.Ext) *Manager {
 	mgr := &Manager{
 		ext:       ext,
+		mtxRoom:   &sync.RWMutex{},
+		mtxCache:  &sync.RWMutex{},
 		infoCache: map[int]Info{},
-		Objects:   map[int]Object{},
-		Items:     map[int]Item{},
-		Entities:  map[int]Entity{},
+		mtxObjs:   &sync.RWMutex{},
+		objects:   map[int]Object{},
+		mtxItems:  &sync.RWMutex{},
+		items:     map[int]Item{},
+		mtxEnts:   &sync.RWMutex{},
+		entities:  map[int]Entity{},
 	}
 	ext.Intercept(in.FLATINFO).With(mgr.handleFlatInfo)
 	ext.Intercept(in.OPC_OK).With(mgr.handleOpcOk)
@@ -77,27 +88,94 @@ func NewManager(ext *g.Ext) *Manager {
 	return mgr
 }
 
-func (mgr *Manager) leaveRoom() {
-	if mgr.IsInRoom {
-		id := mgr.RoomId
-		info := mgr.RoomInfo
+func (mgr *Manager) IsInRoom() bool {
+	return mgr.isInRoom
+}
 
-		mgr.usersPacketCount = 0
+func (mgr *Manager) Id() int {
+	return mgr.roomId
+}
 
-		mgr.IsInRoom = false
-		mgr.RoomModel = ""
-		mgr.RoomId = 0
-		mgr.RoomInfo = info
-		mgr.IsOwner = false
-		mgr.HasRights = false
-		mgr.Heightmap = []string{}
-		clear(mgr.Objects)
-		clear(mgr.Items)
-		clear(mgr.Entities)
+func (mgr *Manager) Model() string {
+	return mgr.roomModel
+}
 
-		mgr.left.Dispatch(Args{Id: id, Info: info})
+func (mgr *Manager) Info() *Info {
+	return mgr.roomInfo
+}
 
-		dbg.Printf("left room")
+func (mgr *Manager) IsOwner() bool {
+	return mgr.isOwner
+}
+
+func (mgr *Manager) HasRights() bool {
+	return mgr.hasRights
+}
+
+func (mgr *Manager) Heightmap() []string {
+	return mgr.heightmap
+}
+
+// Object gets a floor item in the room by its ID.
+// It returns nil if the object was not found.
+func (mgr *Manager) Object(id int) *Object {
+	mgr.mtxObjs.RLock()
+	defer mgr.mtxObjs.RUnlock()
+
+	if obj, ok := mgr.objects[id]; ok {
+		return &obj
+	} else {
+		return nil
+	}
+}
+
+// Objects iterates over all floor items currently in the room.
+func (mgr *Manager) Objects(yield func(obj Object) bool) {
+	mgr.mtxObjs.RLock()
+	defer mgr.mtxObjs.RUnlock()
+
+	for _, obj := range mgr.objects {
+		if !yield(obj) {
+			break
+		}
+	}
+}
+
+// Item gets a wall item in the room by its ID.
+// It returns nil if the item was not found.
+func (mgr *Manager) Item(id int) *Item {
+	mgr.mtxItems.RLock()
+	defer mgr.mtxItems.RUnlock()
+
+	if item, ok := mgr.items[id]; ok {
+		return &item
+	} else {
+		return nil
+	}
+}
+
+// Items iterates over all wall items currently in the room.
+func (mgr *Manager) Items(yield func(item Item) bool) {
+	mgr.mtxItems.RLock()
+	defer mgr.mtxItems.RUnlock()
+
+	for _, item := range mgr.items {
+		if !yield(item) {
+			break
+		}
+	}
+}
+
+// Entity gets an entity in the room by its index.
+// It returns nil if the entity was not found.
+func (mgr *Manager) Entity(id int) *Entity {
+	mgr.mtxEnts.RLock()
+	defer mgr.mtxEnts.RUnlock()
+
+	if ent, ok := mgr.entities[id]; ok {
+		return &ent
+	} else {
+		return nil
 	}
 }
 
@@ -105,8 +183,11 @@ func (mgr *Manager) leaveRoom() {
 // Names are case-insensitive.
 // Returns nil if it does not exist.
 func (mgr *Manager) EntityByName(name string) *Entity {
-	// TODO add maps
-	for _, ent := range mgr.Entities {
+	// TODO add name -> entity map
+	mgr.mtxEnts.RLock()
+	defer mgr.mtxEnts.RUnlock()
+
+	for _, ent := range mgr.entities {
 		if strings.EqualFold(ent.Name, name) {
 			return &ent
 		}
@@ -114,163 +195,107 @@ func (mgr *Manager) EntityByName(name string) *Entity {
 	return nil
 }
 
-// handlers
+// Entities iterates over all entities currently in the room.
+func (mgr *Manager) Entities(yield func(ent Entity) bool) {
+	mgr.mtxEnts.RLock()
+	defer mgr.mtxEnts.RUnlock()
 
-func (mgr *Manager) handleFlatInfo(e *g.Intercept) {
-	var info Info
-	e.Packet.Read(&info)
-
-	mgr.infoCache[info.Id] = info
-
-	dbg.Printf("cached room info (ID: %d)", info.Id)
-}
-
-func (mgr *Manager) handleOpcOk(e *g.Intercept) {
-	mgr.leaveRoom()
-}
-
-func (mgr *Manager) handleRoomReady(e *g.Intercept) {
-	if mgr.IsInRoom {
-		dbg.Printf("WARNING: already in room")
-	}
-
-	s := e.Packet.ReadString()
-	fields := strings.Fields(s)
-	if len(fields) != 2 {
-		dbg.Printf("WARNING: string fields length != 2: %q (%v)", s, fields)
-		return
-	}
-
-	roomId, err := strconv.Atoi(fields[1])
-	if err != nil {
-		dbg.Printf("WARNING: room ID is not an integer: %s", fields[1])
-		return
-	}
-
-	mgr.RoomModel = fields[0]
-	mgr.RoomId = roomId
-	mgr.IsInRoom = true
-
-	if info, ok := mgr.infoCache[roomId]; ok {
-		mgr.entered.Dispatch(Args{Id: roomId, Info: &info})
-		dbg.Printf("entered room %q by %s (ID: %d)", info.Name, info.Owner, info.Id)
-	} else {
-		mgr.entered.Dispatch(Args{Id: roomId})
-		dbg.Println("WARNING: failed to get room info from cache")
-		dbg.Printf("entered room (ID: %d)", roomId)
-	}
-}
-
-func (mgr *Manager) handleRoomRights(e *g.Intercept) {
-	if !mgr.IsInRoom {
-		return
-	}
-
-	switch {
-	case e.Is(in.ROOM_RIGHTS):
-		mgr.HasRights = true
-		mgr.rightsUpdated.Dispatch()
-	case e.Is(in.ROOM_RIGHTS_2):
-		mgr.HasRights = false
-		mgr.rightsUpdated.Dispatch()
-	case e.Is(in.ROOM_RIGHTS_3):
-		mgr.IsOwner = true
-	}
-}
-
-func (mgr *Manager) handleHeightmap(e *g.Intercept) {
-	if !mgr.IsInRoom {
-		return
-	}
-
-	mgr.Heightmap = strings.Split(e.Packet.ReadString(), "\r")
-
-	if debug.Enabled {
-		if len(mgr.Heightmap) > 0 {
-			dbg.Printf("received heightmap (%dx%d)", len(mgr.Heightmap[0]), len(mgr.Heightmap))
-		} else {
-			dbg.Println("WARNING: empty heightmap")
+	for _, ent := range mgr.entities {
+		if !yield(ent) {
+			break
 		}
 	}
 }
 
-func (mgr *Manager) handleActiveObjects(e *g.Intercept) {
-	if !mgr.IsInRoom {
-		return
-	}
+func (mgr *Manager) enterRoom(model string, id int) (info Info, ok bool) {
+	mgr.mtxRoom.Lock()
+	defer mgr.mtxRoom.Unlock()
 
-	var objects []Object
-	e.Packet.Read(&objects)
+	mgr.roomModel = model
+	mgr.roomId = id
+	mgr.isInRoom = true
 
-	for _, object := range objects {
-		mgr.Objects[object.Id] = object
-	}
-
-	mgr.objectsLoaded.Dispatch(ObjectsArgs{Objects: objects})
-
-	dbg.Printf("loaded %d objects", len(objects))
-}
-
-func (mgr *Manager) handleActiveObjectAdd(e *g.Intercept) {
-	if !mgr.IsInRoom {
-		return
-	}
-
-	var object Object
-	e.Packet.Read(&object)
-
-	mgr.Objects[object.Id] = object
-
-	mgr.objectAdded.Dispatch(ObjectArgs{Object: object})
-
-	dbg.Printf("added object %s (ID: %d)", object.Class, object.Id)
-}
-
-func (mgr *Manager) handleActiveObjectUpdate(e *g.Intercept) {
-	if !mgr.IsInRoom {
-		return
-	}
-
-	var cur Object
-	e.Packet.Read(&cur)
-
-	if prev, ok := mgr.Objects[cur.Id]; ok {
-		mgr.Objects[cur.Id] = cur
-		mgr.objectUpdated.Dispatch(ObjectUpdateArgs{Prev: prev, Cur: cur})
-		dbg.Printf("updated object %s (ID: %d)", cur.Class, cur.Id)
+	info, ok = mgr.infoCache[id]
+	if ok {
+		mgr.roomInfo = &info
 	} else {
-		dbg.Printf("WARNING: failed to find object to update (ID: %d)", cur.Id)
+		mgr.roomInfo = nil
+	}
+
+	return
+}
+
+func (mgr *Manager) leaveRoom() {
+	if mgr.isInRoom {
+		mgr.mtxRoom.Lock()
+		defer mgr.mtxRoom.Unlock()
+
+		id := mgr.roomId
+		info := mgr.roomInfo
+
+		mgr.usersPacketCount = 0
+
+		mgr.isInRoom = false
+		mgr.roomModel = ""
+		mgr.roomId = 0
+		mgr.roomInfo = nil
+		mgr.isOwner = false
+		mgr.hasRights = false
+		mgr.heightmap = []string{}
+		mgr.clearObjects()
+		mgr.clearItems()
+		mgr.clearEntities()
+
+		mgr.left.Dispatch(Args{Id: id, Info: info})
+
+		dbg.Printf("left room")
 	}
 }
 
-func (mgr *Manager) handleActiveObjectRemove(e *g.Intercept) {
-	if !mgr.IsInRoom {
-		return
+func (mgr *Manager) updateCache(info Info) {
+	mgr.mtxCache.Lock()
+	defer mgr.mtxCache.Unlock()
+	mgr.infoCache[info.Id] = info
+}
+
+func (mgr *Manager) addObjects(load bool, objs []Object) {
+	mgr.mtxObjs.Lock()
+	defer mgr.mtxObjs.Unlock()
+
+	for _, object := range objs {
+		mgr.objects[object.Id] = object
 	}
 
-	var object Object
-	e.Packet.Read(&object)
-
-	if _, ok := mgr.Objects[object.Id]; ok {
-		delete(mgr.Objects, object.Id)
-		mgr.objectRemoved.Dispatch(ObjectArgs{Object: object})
-		dbg.Printf("removed object (ID: %d)", object.Id)
+	if load {
+		dbg.Printf("loaded %d objects", len(objs))
 	} else {
-		dbg.Printf("WARNING: failed to remove object (ID: %d)", object.Id)
+		dbg.Printf("added object %s (ID: %d)", objs[0].Class, objs[0].Id)
 	}
 }
 
-func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
-	if !mgr.IsInRoom {
-		return
+func (mgr *Manager) updateObject(obj Object) (pre Object, ok bool) {
+	mgr.mtxObjs.Lock()
+	defer mgr.mtxObjs.Unlock()
+
+	if pre, ok = mgr.objects[obj.Id]; ok {
+		mgr.objects[obj.Id] = obj
+		dbg.Printf("updated object %s (ID: %d)", obj.Class, obj.Id)
+	} else {
+		dbg.Printf("WARNING: failed to find object to update (ID: %d)", obj.Id)
 	}
 
-	var bundle SlideObjectBundle
-	e.Packet.Read(&bundle)
+	return
+}
+
+func (mgr *Manager) processSlideObjectBundle(bundle SlideObjectBundle) SlideArgs {
+	mgr.mtxObjs.Lock()
+	defer mgr.mtxObjs.Unlock()
+	mgr.mtxEnts.Lock()
+	defer mgr.mtxEnts.Unlock()
 
 	var pSource *Object
 	if bundle.RollerId != 0 {
-		if source, ok := mgr.Objects[bundle.RollerId]; ok {
+		if source, ok := mgr.objects[bundle.RollerId]; ok {
 			pSource = &source
 		} else {
 			dbg.Printf("failed to find source (ID: %d)", bundle.RollerId)
@@ -285,12 +310,12 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 	}
 
 	for _, bundleObj := range bundle.Objects {
-		obj, ok := mgr.Objects[bundleObj.Id]
+		obj, ok := mgr.objects[bundleObj.Id]
 		if ok {
 			obj.X = args.To.X
 			obj.Y = args.To.Y
 			obj.Z = bundleObj.ToZ
-			mgr.Objects[obj.Id] = obj
+			mgr.objects[obj.Id] = obj
 			args.ObjectSlides = append(args.ObjectSlides, SlideObjectArgs{
 				Object: obj,
 				From: Tile{
@@ -310,11 +335,11 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 	}
 
 	if bundle.SlideMoveType != SlideMoveTypeNone {
-		if ent, ok := mgr.Entities[bundle.Entity.Id]; ok {
+		if ent, ok := mgr.entities[bundle.Entity.Id]; ok {
 			ent.X = bundle.To.X
 			ent.Y = bundle.To.Y
 			ent.Z = bundle.Entity.ToZ
-			mgr.Entities[ent.Index] = ent
+			mgr.entities[ent.Index] = ent
 			args.EntitySlide = &SlideEntityArgs{
 				Entity: ent,
 				From: Tile{
@@ -333,61 +358,314 @@ func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
 		}
 	}
 
-	mgr.slide.Dispatch(args)
-
 	dbg.Printf("processed slide object bundle (%d objects, with entity: %t)", len(args.ObjectSlides), args.EntitySlide != nil)
+	return args
+}
+
+func (mgr *Manager) removeObject(id int) (obj Object, ok bool) {
+	mgr.mtxObjs.Lock()
+	defer mgr.mtxObjs.Unlock()
+
+	if obj, ok = mgr.objects[id]; ok {
+		delete(mgr.objects, id)
+		dbg.Printf("removed object (ID: %d)", id)
+	} else {
+		dbg.Printf("WARNING: failed to remove object (ID: %d)", id)
+	}
+
+	return
+}
+
+func (mgr *Manager) clearObjects() {
+	mgr.mtxObjs.Lock()
+	defer mgr.mtxObjs.Unlock()
+	clear(mgr.objects)
+}
+
+func (mgr *Manager) addItems(load bool, items []Item) {
+	mgr.mtxItems.Lock()
+	defer mgr.mtxItems.Unlock()
+
+	for _, item := range items {
+		// TODO: check if this loop gets optimized away when !debug.Enabled
+		if _, exists := mgr.items[item.Id]; exists {
+			dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
+		}
+		mgr.items[item.Id] = item
+	}
+
+	if load {
+		dbg.Printf("loaded %d items", len(items))
+	} else {
+		dbg.Printf("added item %s (ID: %d)", items[0].Class, items[0].Id)
+	}
+}
+
+func (mgr *Manager) updateItem(item Item) (pre Item, ok bool) {
+	mgr.mtxItems.Lock()
+	defer mgr.mtxItems.Unlock()
+
+	if pre, ok = mgr.items[item.Id]; ok {
+		mgr.items[item.Id] = item
+		dbg.Printf("updated item %s (ID: %d)", item.Class, item.Id)
+	} else {
+		dbg.Printf("WARNING: failed to find item to update (ID: %d)", item.Id)
+	}
+
+	return
+}
+
+func (mgr *Manager) removeItem(id int) (item Item, ok bool) {
+	mgr.mtxItems.Lock()
+	defer mgr.mtxItems.Unlock()
+
+	if item, ok = mgr.items[id]; ok {
+		delete(mgr.items, item.Id)
+		dbg.Printf("removed item %s (ID: %d)", item.Class, item.Id)
+	} else {
+		dbg.Printf("WARNING: failed to find item to remove (ID: %d)", item.Id)
+	}
+
+	return
+}
+
+func (mgr *Manager) clearItems() {
+	mgr.mtxItems.Lock()
+	defer mgr.mtxItems.Unlock()
+	clear(mgr.items)
+}
+
+func (mgr *Manager) addEntities(ents []Entity) {
+	mgr.mtxEnts.Lock()
+	defer mgr.mtxEnts.Unlock()
+
+	for _, entity := range ents {
+		// TODO: check if this branch gets optimized away when !debug.Enabled
+		if _, exists := mgr.entities[entity.Index]; exists {
+			dbg.Printf("WARNING: duplicate entity index: %d", entity.Index)
+		}
+		mgr.entities[entity.Index] = entity
+	}
+}
+
+func (mgr *Manager) updateEntities(statuses []EntityStatus) []EntityUpdateArgs {
+	mgr.mtxEnts.Lock()
+	defer mgr.mtxEnts.Unlock()
+
+	updates := make([]EntityUpdateArgs, 0, len(statuses))
+
+	for _, status := range statuses {
+		pre, ok := mgr.entities[status.Index]
+		if ok {
+			cur := pre
+			cur.Tile = status.Tile
+			cur.Action = status.Action
+			mgr.entities[status.Index] = cur
+		} else {
+			dbg.Printf("WARNING: failed to find entity to update (index: %d)", status.Index)
+		}
+	}
+
+	return updates
+}
+
+func (mgr *Manager) removeEntity(index int) (ent Entity, ok bool) {
+	mgr.mtxEnts.Lock()
+	defer mgr.mtxEnts.Unlock()
+
+	if ent, ok = mgr.entities[index]; ok {
+		delete(mgr.entities, index)
+		dbg.Printf("removed entity %q (index: %d)", ent.Name, ent.Index)
+	} else {
+		dbg.Printf("WARNING: failed to find entity to remove (index: %d)", index)
+	}
+
+	return
+}
+
+func (mgr *Manager) clearEntities() {
+	mgr.mtxEnts.Lock()
+	defer mgr.mtxEnts.Unlock()
+	clear(mgr.entities)
+}
+
+// handlers
+
+func (mgr *Manager) handleFlatInfo(e *g.Intercept) {
+	var info Info
+	e.Packet.Read(&info)
+
+	mgr.updateCache(info)
+
+	dbg.Printf("cached room info (ID: %d)", info.Id)
+}
+
+func (mgr *Manager) handleOpcOk(e *g.Intercept) {
+	mgr.leaveRoom()
+}
+
+func (mgr *Manager) handleRoomReady(e *g.Intercept) {
+	if mgr.isInRoom {
+		dbg.Printf("WARNING: already in room")
+	}
+
+	s := e.Packet.ReadString()
+	fields := strings.Fields(s)
+	if len(fields) != 2 {
+		dbg.Printf("WARNING: string fields length != 2: %q (%v)", s, fields)
+		return
+	}
+
+	model := fields[0]
+	roomId, err := strconv.Atoi(fields[1])
+	if err != nil {
+		dbg.Printf("WARNING: room ID is not an integer: %s", fields[1])
+		return
+	}
+
+	mgr.enterRoom(model, roomId)
+
+	if mgr.roomInfo != nil {
+		mgr.entered.Dispatch(Args{Id: roomId, Info: mgr.roomInfo})
+		dbg.Printf("entered room %q by %s (ID: %d)", mgr.roomInfo.Name, mgr.roomInfo.Owner, mgr.roomInfo.Id)
+	} else {
+		mgr.entered.Dispatch(Args{Id: roomId})
+		dbg.Println("WARNING: failed to get room info from cache")
+		dbg.Printf("entered room (ID: %d)", roomId)
+	}
+}
+
+func (mgr *Manager) handleRoomRights(e *g.Intercept) {
+	if !mgr.isInRoom {
+		return
+	}
+
+	switch {
+	case e.Is(in.ROOM_RIGHTS):
+		mgr.hasRights = true
+		mgr.rightsUpdated.Dispatch()
+	case e.Is(in.ROOM_RIGHTS_2):
+		mgr.hasRights = false
+		mgr.rightsUpdated.Dispatch()
+	case e.Is(in.ROOM_RIGHTS_3):
+		mgr.isOwner = true
+	}
+}
+
+func (mgr *Manager) handleHeightmap(e *g.Intercept) {
+	if !mgr.isInRoom {
+		return
+	}
+
+	mgr.heightmap = strings.Split(e.Packet.ReadString(), "\r")
+
+	if debug.Enabled {
+		if len(mgr.heightmap) > 0 {
+			dbg.Printf("received heightmap (%dx%d)", len(mgr.heightmap[0]), len(mgr.heightmap))
+		} else {
+			dbg.Println("WARNING: empty heightmap")
+		}
+	}
+}
+
+func (mgr *Manager) handleActiveObjects(e *g.Intercept) {
+	if !mgr.isInRoom {
+		return
+	}
+
+	var objects []Object
+	e.Packet.Read(&objects)
+
+	mgr.addObjects(true, objects)
+
+	mgr.objectsLoaded.Dispatch(ObjectsArgs{Objects: objects})
+}
+
+func (mgr *Manager) handleActiveObjectAdd(e *g.Intercept) {
+	if !mgr.isInRoom {
+		return
+	}
+
+	var object Object
+	e.Packet.Read(&object)
+
+	mgr.addObjects(false, []Object{object})
+
+	mgr.objectAdded.Dispatch(ObjectArgs{Object: object})
+}
+
+func (mgr *Manager) handleActiveObjectUpdate(e *g.Intercept) {
+	if !mgr.isInRoom {
+		return
+	}
+
+	var cur Object
+	e.Packet.Read(&cur)
+
+	if pre, ok := mgr.updateObject(cur); ok {
+		mgr.objectUpdated.Dispatch(ObjectUpdateArgs{Pre: pre, Object: cur})
+	}
+}
+
+func (mgr *Manager) handleActiveObjectRemove(e *g.Intercept) {
+	if !mgr.isInRoom {
+		return
+	}
+
+	var obj Object
+	e.Packet.Read(&obj)
+
+	if obj, ok := mgr.removeObject(obj.Id); ok {
+		mgr.objectRemoved.Dispatch(ObjectArgs{Object: obj})
+	}
+}
+
+func (mgr *Manager) handleSlideObjectBundle(e *g.Intercept) {
+	if !mgr.isInRoom {
+		return
+	}
+
+	var bundle SlideObjectBundle
+	e.Packet.Read(&bundle)
+
+	args := mgr.processSlideObjectBundle(bundle)
+
+	mgr.slide.Dispatch(args)
 }
 
 func (mgr *Manager) handleItems(e *g.Intercept) {
-	if !mgr.IsInRoom {
+	if !mgr.isInRoom {
 		return
 	}
 
 	var items Items
 	e.Packet.Read(&items)
 
-	for _, item := range items {
-		// TODO: check if this loop gets optimized away when !debug.Enabled
-		if _, exists := mgr.Items[item.Id]; exists {
-			dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
-		}
-		mgr.Items[item.Id] = item
-	}
+	mgr.addItems(true, items)
 
 	mgr.itemsLoaded.Dispatch(ItemsArgs{Items: items})
-
-	dbg.Printf("loaded %d items", len(items))
 }
 
 func (mgr *Manager) handleAddOrUpdateItem(e *g.Intercept) {
-	if !mgr.IsInRoom {
+	if !mgr.isInRoom {
 		return
 	}
 
 	var item Item
 	e.Packet.Read(&item)
 
-	add := e.Is(in.ITEMS_2)
-	pre, exists := mgr.Items[item.Id]
-	if add && exists {
-		dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
-	} else if !add && !exists {
-		dbg.Printf("WARNING: failed to find item to update (ID: %d)", item.Id)
-		return
-	}
-	mgr.Items[item.Id] = item
-
-	if add {
+	if e.Is(in.ITEMS_2) {
+		mgr.addItems(false, []Item{item})
 		mgr.itemAdded.Dispatch(ItemArgs{Item: item})
-		dbg.Printf("added item %s (ID: %d)", item.Class, item.Id)
 	} else {
-		mgr.itemUpdated.Dispatch(ItemUpdateArgs{Pre: pre, Item: item})
-		dbg.Printf("updated item %s (ID: %d)", item.Class, item.Id)
+		if pre, ok := mgr.updateItem(item); ok {
+			mgr.itemUpdated.Dispatch(ItemUpdateArgs{Pre: pre, Item: item})
+		}
 	}
 }
 
 func (mgr *Manager) handleRemoveItem(e *g.Intercept) {
-	if !mgr.IsInRoom {
+	if !mgr.isInRoom {
 		return
 	}
 
@@ -398,30 +676,20 @@ func (mgr *Manager) handleRemoveItem(e *g.Intercept) {
 		return
 	}
 
-	if item, ok := mgr.Items[id]; ok {
-		delete(mgr.Items, item.Id)
+	if item, ok := mgr.removeItem(id); ok {
 		mgr.itemRemoved.Dispatch(ItemArgs{Item: item})
-		dbg.Printf("removed item %s (ID: %d)", item.Class, item.Id)
-	} else {
-		dbg.Printf("WARNING: failed to remove item (ID: %d)", item.Id)
 	}
 }
 
 func (mgr *Manager) handleUsers(e *g.Intercept) {
-	if !mgr.IsInRoom {
+	if !mgr.isInRoom {
 		return
 	}
 
 	var ents []Entity
 	e.Packet.Read(&ents)
 
-	for _, entity := range ents {
-		// TODO: check if this branch gets optimized away when !debug.Enabled
-		if _, exists := mgr.Entities[entity.Index]; exists {
-			dbg.Printf("WARNING: duplicate entity index: %d", entity.Index)
-		}
-		mgr.Entities[entity.Index] = entity
-	}
+	mgr.addEntities(ents)
 
 	if mgr.usersPacketCount < 3 {
 		mgr.usersPacketCount++
@@ -436,37 +704,22 @@ func (mgr *Manager) handleUsers(e *g.Intercept) {
 }
 
 func (mgr *Manager) handleStatus(e *g.Intercept) {
-	if !mgr.IsInRoom {
+	if !mgr.isInRoom {
 		return
 	}
 
-	n := e.Packet.ReadInt()
-	for range n {
-		var status EntityStatus
-		e.Packet.Read(&status)
-		entity, ok := mgr.Entities[status.Index]
-		if !ok {
-			dbg.Printf("WARNING: failed to find entity to update (index: %d)", status.Index)
-			continue
-		}
+	var statuses []EntityStatus
+	e.Packet.Read(&statuses)
 
-		cur := entity
-		cur.Tile = status.Tile
-		cur.Action = status.Action
-		mgr.Entities[status.Index] = cur
+	updates := mgr.updateEntities(statuses)
 
-		mgr.entityUpdated.Dispatch(EntityUpdateArgs{
-			Prev: entity,
-			Cur:  cur,
-		})
-
-		dbg.Printf("status update for %q (index: %d): %q",
-			entity.Name, entity.Index, status.Action)
+	for _, update := range updates {
+		mgr.entityUpdated.Dispatch(update)
 	}
 }
 
 func (mgr *Manager) handleChat(e *g.Intercept) {
-	if !mgr.IsInRoom {
+	if !mgr.isInRoom {
 		return
 	}
 
@@ -483,7 +736,7 @@ func (mgr *Manager) handleChat(e *g.Intercept) {
 		dbg.Printf("WARNING: unknown chat header: %q", e.Name())
 	}
 
-	if entity, ok := mgr.Entities[index]; ok {
+	if entity, ok := mgr.entities[index]; ok {
 		mgr.entityChat.Dispatch(EntityChatArgs{
 			EntityArgs: EntityArgs{Entity: entity},
 			Type:       chatType,
@@ -505,7 +758,7 @@ func (mgr *Manager) handleChat(e *g.Intercept) {
 }
 
 func (mgr *Manager) handleLogout(e *g.Intercept) {
-	if !mgr.IsInRoom {
+	if !mgr.isInRoom {
 		return
 	}
 
@@ -516,12 +769,8 @@ func (mgr *Manager) handleLogout(e *g.Intercept) {
 		return
 	}
 
-	if entity, ok := mgr.Entities[index]; ok {
-		delete(mgr.Entities, index)
+	if entity, ok := mgr.removeEntity(index); ok {
 		mgr.entityLeft.Dispatch(EntityArgs{Entity: entity})
-		dbg.Printf("removed entity %q (index: %d)", entity.Name, entity.Index)
-	} else {
-		dbg.Printf("WARNING: failed to remove entity (index: %d)", index)
 	}
 }
 

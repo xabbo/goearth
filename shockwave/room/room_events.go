@@ -15,8 +15,8 @@ type ObjectArgs struct {
 
 // ObjectUpdateArgs holds the arguments for floor item update events.
 type ObjectUpdateArgs struct {
-	Prev Object // Prev is the previous state of the object before the update.
-	Cur  Object // Cur is the current state of the object after the update.
+	Pre    Object // Prev is the previous state of the object before the update.
+	Object Object // Cur is the current state of the object after the update.
 }
 
 // ObjectArgs holds the arguments for floor item events involving a list of items.
@@ -71,8 +71,8 @@ type EntityArgs struct {
 
 // EntityUpdateArgs holds the arguments for entity update events.
 type EntityUpdateArgs struct {
-	Prev Entity // Prev is the previous state of the entity before the update.
-	Cur  Entity // Cur is the current state of the entity after the update.
+	Pre    Entity // Prev is the previous state of the entity before the update.
+	Entity Entity // Cur is the current state of the entity after the update.
 }
 
 // EntitiesArgs holds the arguments for events involving a list of entities.
