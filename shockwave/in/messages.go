@@ -1,4 +1,4 @@
-// Generated for shockwave-windows release 20 (source: sulek.dev)
+// Generated for shockwave-windows release 26 (source: sulek.dev)
 
 package in
 
@@ -41,6 +41,7 @@ var (
 	COPPA_GETREALTIME                = g.In.Id("COPPA_GETREALTIME")
 	CREATE_GAME_INFO                 = g.In.Id("CREATE_GAME_INFO")
 	CRYFORHELP                       = g.In.Id("CRYFORHELP")
+	CRYPTO_PARAMETERS                = g.In.Id("CRYPTO_PARAMETERS")
 	CRY_REPLY                        = g.In.Id("CRY_REPLY")
 	DATE                             = g.In.Id("DATE")
 	DELETE_CRY                       = g.In.Id("DELETE_CRY")
@@ -54,6 +55,7 @@ var (
 	DOOR_OUT                         = g.In.Id("DOOR_OUT")
 	EMAIL_APPROVED                   = g.In.Id("EMAIL_APPROVED")
 	EMAIL_REJECTED                   = g.In.Id("EMAIL_REJECTED")
+	END_CRYPTO                       = g.In.Id("END_CRYPTO")
 	ENTER_ARENA                      = g.In.Id("ENTER_ARENA")
 	ENTER_ARENA_FAILED               = g.In.Id("ENTER_ARENA_FAILED")
 	EPSNOTIFY                        = g.In.Id("EPSNOTIFY")
@@ -91,6 +93,7 @@ var (
 	HEIGHTMAP                        = g.In.Id("HEIGHTMAP")
 	HEIGHTMAPUPDATE                  = g.In.Id("HEIGHTMAPUPDATE")
 	HELLO                            = g.In.Id("HELLO")
+	HOTEL_LOGOUT                     = g.In.Id("HOTEL_LOGOUT")
 	IDATA                            = g.In.Id("IDATA")
 	INTERSTITIALDATA                 = g.In.Id("INTERSTITIALDATA")
 	IN_ARENA_QUEUE                   = g.In.Id("IN_ARENA_QUEUE")
@@ -171,6 +174,7 @@ var (
 	SESSION_PARAMETERS               = g.In.Id("SESSION_PARAMETERS")
 	SHOWPROGRAM                      = g.In.Id("SHOWPROGRAM")
 	SLIDEOBJECTBUNDLE                = g.In.Id("SLIDEOBJECTBUNDLE")
+	SOUND_SETTING                    = g.In.Id("SOUND_SETTING")
 	SPACENODEUSERS                   = g.In.Id("SPACENODEUSERS")
 	STAGE_ENDING                     = g.In.Id("STAGE_ENDING")
 	STAGE_RUNNING                    = g.In.Id("STAGE_RUNNING")
