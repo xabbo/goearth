@@ -132,13 +132,14 @@ func (mgr *Manager) Object(id int) *Object {
 // Objects iterates over all floor items currently in the room.
 func (mgr *Manager) Objects(yield func(obj Object) bool) {
 	mgr.mtxObjs.RLock()
-	defer mgr.mtxObjs.RUnlock()
-
 	for _, obj := range mgr.objects {
+		mgr.mtxObjs.RUnlock()
 		if !yield(obj) {
-			break
+			return
 		}
+		mgr.mtxObjs.RLock()
 	}
+	mgr.mtxObjs.RUnlock()
 }
 
 // ObjectCount returns the number of objects in the room.
@@ -162,13 +163,14 @@ func (mgr *Manager) Item(id int) *Item {
 // Items iterates over all wall items currently in the room.
 func (mgr *Manager) Items(yield func(item Item) bool) {
 	mgr.mtxItems.RLock()
-	defer mgr.mtxItems.RUnlock()
-
 	for _, item := range mgr.items {
+		mgr.mtxItems.RUnlock()
 		if !yield(item) {
-			break
+			return
 		}
+		mgr.mtxItems.RLock()
 	}
+	mgr.mtxItems.RUnlock()
 }
 
 // ItemCount returns the number of items in the room.
@@ -208,13 +210,14 @@ func (mgr *Manager) EntityByName(name string) *Entity {
 // Entities iterates over all entities currently in the room.
 func (mgr *Manager) Entities(yield func(ent Entity) bool) {
 	mgr.mtxEnts.RLock()
-	defer mgr.mtxEnts.RUnlock()
-
 	for _, ent := range mgr.entities {
+		mgr.mtxEnts.RUnlock()
 		if !yield(ent) {
 			break
 		}
+		mgr.mtxEnts.RLock()
 	}
+	mgr.mtxEnts.RUnlock()
 }
 
 // EntityCount returns the number of entities in the room.
