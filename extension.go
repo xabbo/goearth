@@ -169,6 +169,18 @@ func (ext *Ext) Connect(port int) error {
 	return err
 }
 
+func (ext *Ext) Log(a ...any) {
+	p := &Packet{Header: Header{Out, gOutExtensionConsoleLog}}
+	p.WriteString(ext.info.Title + " --> " + fmt.Sprint(a...))
+	ext.sendRaw(p)
+}
+
+func (ext *Ext) Logf(format string, a ...any) {
+	p := &Packet{Header: Header{Out, gOutExtensionConsoleLog}}
+	p.WriteString(ext.info.Title + " --> " + fmt.Sprintf(format, a...))
+	ext.sendRaw(p)
+}
+
 func (ext *Ext) MustConnect(port int) {
 	err := ext.Connect(port)
 	if err != nil {
