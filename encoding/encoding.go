@@ -1,6 +1,7 @@
 package encoding
 
 import (
+	"fmt"
 	"math/bits"
 )
 
@@ -38,10 +39,16 @@ func VL64Encode(b []byte, v int) {
 
 // VL64Decode decodes a variable-length base64-encoded integer from the specified byte slice.
 func VL64Decode(b []byte) int {
+	if b[0]&0x40 != 0x40 {
+		panic(fmt.Errorf("vl64 decode: invalid byte %02x", b[0]))
+	}
 	value := int(b[0] & 3)
 
 	n := VL64DecodeLen(b[0])
 	for i := 1; i < n; i++ {
+		if b[i]&0x40 != 0x40 {
+			panic(fmt.Errorf("vl64 decode: invalid byte %02x", b[0]))
+		}
 		value |= int(b[i]&0x3f) << (2 + 6*(i-1))
 	}
 
@@ -62,6 +69,9 @@ func B64Encode(b []byte, v int) {
 func B64Decode(b []byte) int {
 	v := 0
 	for i := 0; i < len(b); i++ {
+		if b[i]&0x40 != 0x40 {
+			panic(fmt.Errorf("b64 decode: invalid byte %02x", b[i]))
+		}
 		v |= int(b[i]&0x3f) << ((len(b) - i - 1) * 6)
 	}
 	return v
