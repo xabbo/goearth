@@ -10,7 +10,10 @@ import (
 	"unsafe"
 
 	"xabbo.b7c.io/goearth/encoding"
+	"xabbo.b7c.io/goearth/internal/debug"
 )
+
+var dbgPkt = debug.NewLoggerIf("[pkt]", debug.Ptrace)
 
 type Packet struct {
 	Client ClientType
@@ -175,6 +178,7 @@ func (p *Packet) ReadBuffer(buf []byte) {
 func (p *Packet) ReadBytePtr(pos *int) (value byte) {
 	p.assertCanRead(*pos, 1)
 	value = p.Data[*pos]
+	dbgPkt.Printf("%d", value)
 	*pos++
 	return
 }
@@ -201,8 +205,10 @@ func (p *Packet) ReadBoolPtr(pos *int) (value bool) {
 			panic(fmt.Errorf("attempt to read boolean when VL64 length > 1"))
 		}
 		i = encoding.VL64Decode(p.Data[*pos : *pos+1])
+		dbgPkt.Printf("vl64: %t", i == 1)
 	default:
 		i = int(p.Data[*pos])
+		dbgPkt.Printf("%t", i == 1)
 	}
 	if i != 0 && i != 1 {
 		panic(fmt.Errorf("attempt to read boolean from non-boolean value: %d", i))
@@ -230,6 +236,7 @@ func (p *Packet) ReadBool() bool {
 func (p *Packet) ReadBytesPtr(pos *int, n int) (value []byte) {
 	p.assertCanRead(*pos, n)
 	value = make([]byte, n)
+	dbgPkt.Printf("%v", value)
 	*pos += copy(value, p.Data[*pos:])
 	return
 }
@@ -253,10 +260,12 @@ func (p *Packet) ReadShortPtr(pos *int) (value int16) {
 		case In:
 			var vl64 VL64
 			vl64.Parse(p, pos)
+			dbgPkt.Printf("vl64: %d", vl64)
 			return int16(vl64)
 		case Out:
 			var b64 B64
 			b64.Parse(p, pos)
+			dbgPkt.Printf("b64: %d", b64)
 			return int16(b64)
 		default:
 			panic(fmt.Errorf("%w: unknown packet direction when reading short on shockwave session",
@@ -265,6 +274,7 @@ func (p *Packet) ReadShortPtr(pos *int) (value int16) {
 	}
 	p.assertCanRead(*pos, 2)
 	value = int16(binary.BigEndian.Uint16(p.Data[*pos:]))
+	dbgPkt.Printf("%d", value)
 	*pos += 2
 	return
 }
@@ -290,10 +300,12 @@ func (p *Packet) ReadIntPtr(pos *int) (value int) {
 	if p.Client == Shockwave {
 		var vl64 VL64
 		vl64.Parse(p, pos)
+		dbgPkt.Printf("vl64: %d", vl64)
 		return int(vl64)
 	}
 	p.assertCanRead(*pos, 4)
 	value = int(int32(binary.BigEndian.Uint32(p.Data[*pos:])))
+	dbgPkt.Printf("%d", value)
 	*pos += 4
 	return
 }
@@ -323,11 +335,13 @@ func (p *Packet) ReadFloatPtr(pos *int) float32 {
 		if err != nil {
 			panic(fmt.Errorf("failed to parse float: %w", err))
 		}
+		dbgPkt.Printf("string: %f", value)
 		return float32(value)
 	default:
 		p.assertCanRead(*pos, 4)
 		bits := binary.BigEndian.Uint32(p.Data[*pos:])
 		value := math.Float32frombits(bits)
+		dbgPkt.Printf("%f", value)
 		*pos += 4
 		return value
 	}
@@ -358,6 +372,7 @@ func (p *Packet) ReadLongPtr(pos *int) (value int64) {
 	x := binary.BigEndian.Uint64(p.Data[*pos:])
 	ptr := unsafe.Pointer(&x)
 	value = *(*int64)(ptr)
+	dbgPkt.Printf("%d", value)
 	*pos += 8
 	return
 }
@@ -398,6 +413,7 @@ func (p *Packet) ReadStringPtr(pos *int) (value string) {
 		value = string(p.Data[*pos+2 : *pos+2+length])
 		*pos += 2 + length
 	}
+	dbgPkt.Printf("%q", value)
 	return
 }
 
@@ -447,6 +463,7 @@ func (p *Packet) Read(vars ...any) {
 func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 	if v.CanAddr() {
 		if parsable, ok := v.Addr().Interface().(Parsable); ok {
+			dbgPkt.Printf("Parsable: %s", reflect.TypeOf(v).Name())
 			parsable.Parse(p, pos)
 			return
 		}
@@ -456,6 +473,7 @@ func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 		p.readReflectPtr(pos, v.Elem())
 	case reflect.Array:
 		n := v.Len()
+		dbgPkt.Printf("array[%d]", n)
 		for i := 0; i < n; i++ {
 			p.readReflectPtr(&p.Pos, v.Index(i))
 		}
@@ -463,6 +481,7 @@ func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 		t := v.Type()
 		var len Length
 		len.Parse(p, pos)
+		dbgPkt.Printf("slice[%d]", len)
 		slc := reflect.MakeSlice(t, int(len), int(len))
 		for i := 0; i < int(len); i++ {
 			p.readReflectPtr(pos, slc.Index(i))
@@ -470,6 +489,7 @@ func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 		v.Set(slc)
 	case reflect.Struct:
 		n := v.NumField()
+		dbgPkt.Printf("struct: %s", v.Type().Name())
 		for i := 0; i < n; i++ {
 			if v := v.Field(i); v.CanSet() {
 				p.readReflectPtr(pos, v)
@@ -492,6 +512,7 @@ func (p *Packet) readReflectPtr(pos *int, v reflect.Value) {
 func (p *Packet) readInterfacePtr(pos *int, v any) bool {
 	switch v := v.(type) {
 	case Parsable:
+		dbgPkt.Printf("Parsable: %s", reflect.TypeOf(v).Name())
 		v.Parse(p, pos)
 	case *bool:
 		*v = p.ReadBoolPtr(pos)

@@ -12,8 +12,9 @@ import (
 const flags = log.Ltime | log.Lmicroseconds
 
 type Logger struct {
-	l      *log.Logger
-	prefix string
+	l       *log.Logger
+	enabled bool
+	prefix  string
 }
 
 func NewLogger(prefix string) *Logger {
@@ -23,8 +24,14 @@ func NewLogger(prefix string) *Logger {
 	return &Logger{l: log.New(os.Stderr, "", flags), prefix: prefix}
 }
 
+func NewLoggerIf(prefix string, enabled bool) *Logger {
+	logger := NewLogger(prefix)
+	logger.enabled = enabled
+	return logger
+}
+
 func (dbg *Logger) Output(s string) {
-	if !Enabled {
+	if !Enabled || !dbg.enabled {
 		return
 	}
 
@@ -50,9 +57,13 @@ func (dbg *Logger) Output(s string) {
 }
 
 func (dbg *Logger) Printf(format string, v ...any) {
-	dbg.Output(fmt.Sprintf(format, v...))
+	if Enabled && dbg.enabled {
+		dbg.Output(fmt.Sprintf(format, v...))
+	}
 }
 
 func (dbg *Logger) Println(v ...any) {
-	dbg.Output(fmt.Sprint(v...))
+	if Enabled && dbg.enabled {
+		dbg.Output(fmt.Sprint(v...))
+	}
 }

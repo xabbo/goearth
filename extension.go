@@ -18,7 +18,7 @@ import (
 	"xabbo.b7c.io/goearth/internal/debug"
 )
 
-var dbg = debug.NewLogger("[ext]")
+var dbgExt = debug.NewLogger("[ext]")
 
 // maximum Habbo packet sizes
 const (
@@ -458,7 +458,7 @@ func (ext *Ext) handleInit(p *Packet) {
 		connected = p.ReadBool()
 	}
 
-	dbg.Printf("initialized (connected: %t)", connected)
+	dbgExt.Printf("initialized (connected: %t)", connected)
 
 	ext.initialized.Dispatch(InitArgs{
 		Connected: connected,
@@ -466,7 +466,7 @@ func (ext *Ext) handleInit(p *Packet) {
 }
 
 func (ext *Ext) handleInfoRequest() {
-	dbg.Println("extension info requested")
+	dbgExt.Println("extension info requested")
 
 	res := &Packet{Header: Header{Out, gOutInfo}}
 	res.Write(&ext.info)
@@ -474,7 +474,7 @@ func (ext *Ext) handleInfoRequest() {
 }
 
 func (ext *Ext) handleActivated() {
-	dbg.Println("extension activated")
+	dbgExt.Println("extension activated")
 
 	ext.activated.Dispatch()
 }
@@ -483,7 +483,7 @@ func (ext *Ext) handleConnectionStart(p *Packet) {
 	args := ConnectArgs{}
 	p.Read(&args.Host, &args.Port, &args.Client, &args.Messages)
 
-	dbg.Printf("game connected (%s:%d on %s/%s)", args.Host, args.Port, args.Client.Identifier, args.Client.Version)
+	dbgExt.Printf("game connected (%s:%d on %s/%s)", args.Host, args.Port, args.Client.Identifier, args.Client.Version)
 
 	for _, msg := range args.Messages {
 		var dir Direction
@@ -518,7 +518,7 @@ func (ext *Ext) handleConnectionEnd() {
 	ext.connectionCtx = nil
 	ext.closeConnectionCtx = nil
 
-	dbg.Println("game disconnected")
+	dbgExt.Println("game disconnected")
 
 	ext.disconnected.Dispatch()
 }
