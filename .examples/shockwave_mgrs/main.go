@@ -3,6 +3,7 @@ package main
 import (
 	g "xabbo.b7c.io/goearth"
 	"xabbo.b7c.io/goearth/shockwave/inventory"
+	"xabbo.b7c.io/goearth/shockwave/nav"
 	"xabbo.b7c.io/goearth/shockwave/profile"
 	"xabbo.b7c.io/goearth/shockwave/room"
 	"xabbo.b7c.io/goearth/shockwave/trade"
@@ -25,5 +26,6 @@ func main() {
 	room.NewManager(ext)
 	trade.NewManager(ext)
 	profile.NewManager(ext)
+	nav.NewManager(ext)
 	ext.Run()
 }
