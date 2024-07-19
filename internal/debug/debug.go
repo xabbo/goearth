@@ -21,7 +21,7 @@ func NewLogger(prefix string) *Logger {
 	if prefix != "" && !strings.HasSuffix(prefix, " ") {
 		prefix = prefix + " "
 	}
-	return &Logger{l: log.New(os.Stderr, "", flags), prefix: prefix}
+	return &Logger{l: log.New(os.Stderr, "", flags), prefix: prefix, enabled: true}
 }
 
 func NewLoggerIf(prefix string, enabled bool) *Logger {
