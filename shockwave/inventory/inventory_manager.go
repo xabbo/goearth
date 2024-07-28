@@ -1,7 +1,9 @@
 package inventory
 
 import (
+	"context"
 	"sync"
+	"time"
 
 	g "xabbo.b7c.io/goearth"
 	"xabbo.b7c.io/goearth/internal/debug"
@@ -17,17 +19,23 @@ type Manager struct {
 	updated     g.VoidEvent
 	itemRemoved g.Event[ItemArgs]
 
-	mtxItems *sync.RWMutex
-	items    map[int]Item
+	scanCtx   context.Context
+	scanDone  func(error)
+	scanPage  int
+	scanItems map[int]struct{}
+
+	mtx   *sync.RWMutex
+	items map[int]Item
 }
 
 // NewManager creates a new inventory Manager using the provided extension.
 func NewManager(ext *g.Ext) *Manager {
 	mgr := &Manager{
-		ext:      ext,
-		mtxItems: &sync.RWMutex{},
-		items:    map[int]Item{},
+		ext:   ext,
+		mtx:   &sync.RWMutex{},
+		items: map[int]Item{},
 	}
+	ext.Intercept(out.GETSTRIP).With(mgr.handleGetStrip)
 	ext.Intercept(in.STRIPINFO_2).With(mgr.handleStripInfo2)
 	ext.Intercept(in.REMOVESTRIPITEM).With(mgr.handleRemoveStripItem)
 	return mgr
@@ -35,8 +43,8 @@ func NewManager(ext *g.Ext) *Manager {
 
 // Item gets the item with the specified ID.
 func (mgr *Manager) Item(id int) *Item {
-	mgr.mtxItems.RLock()
-	defer mgr.mtxItems.RUnlock()
+	mgr.mtx.RLock()
+	defer mgr.mtx.RUnlock()
 	if item, ok := mgr.items[id]; ok {
 		return &item
 	} else {
@@ -46,15 +54,15 @@ func (mgr *Manager) Item(id int) *Item {
 
 // Items iterates over all inventory items.
 func (mgr *Manager) Items(yield func(item Item) bool) {
-	mgr.mtxItems.RLock()
+	mgr.mtx.RLock()
 	for _, item := range mgr.items {
-		mgr.mtxItems.RUnlock()
+		mgr.mtx.RUnlock()
 		if !yield(item) {
 			return
 		}
-		mgr.mtxItems.RLock()
+		mgr.mtx.RLock()
 	}
-	mgr.mtxItems.RUnlock()
+	mgr.mtx.RUnlock()
 }
 
 // ItemCount returns the number of items in the inventory.
@@ -62,30 +70,66 @@ func (mgr *Manager) ItemCount() int {
 	return len(mgr.items)
 }
 
-// RequestItems sends a request to retrieve the user's inventory.
-func (mgr *Manager) RequestItems() {
-	mgr.ext.Send(out.GETSTRIP)
+// Scan performs a full load of the inventory by requesting each inventory page.
+// The context returned cancels without error once the scan has completed.
+// Multiple calls to Scan while a scan is in progress will return the same context.
+func (mgr *Manager) Scan() context.Context {
+	mgr.mtx.Lock()
+	defer mgr.mtx.Unlock()
+
+	if mgr.scanCtx != nil {
+		return mgr.scanCtx
+	}
+
+	dbg.Printf("beginning scan")
+
+	mgr.scanPage = 0
+	mgr.scanItems = map[int]struct{}{}
+	mgr.scanCtx, mgr.scanDone = context.WithCancelCause(mgr.ext.Context())
+
+	// request first page
+	mgr.ext.Send(out.GETSTRIP, []byte("new"))
+
+	return mgr.scanCtx
 }
 
-func (mgr *Manager) loadItems(items []Item) {
-	mgr.mtxItems.Lock()
-	defer mgr.mtxItems.Unlock()
+func (mgr *Manager) CancelScan() bool {
+	mgr.mtx.Lock()
+	defer mgr.mtx.Unlock()
 
-	clear(mgr.items)
-	mgr.items = map[int]Item{}
+	if mgr.scanCtx == nil {
+		return false
+	}
+
+	dbg.Printf("cancelling scan")
+
+	mgr.scanDone(context.Canceled)
+	mgr.scanCtx = nil
+	return true
+}
+
+func (mgr *Manager) loadItems(items []Item) (added []Item) {
+	mgr.mtx.Lock()
+	defer mgr.mtx.Unlock()
+
+	n := 0
 	for _, item := range items {
-		if _, exists := mgr.items[item.Id]; exists {
-			dbg.Printf("WARNING: duplicate item (ID: %d)", item.Id)
+		if _, exists := mgr.items[item.ItemId]; !exists {
+			n++
+			added = append(added, item)
 		}
 		mgr.items[item.ItemId] = item
 	}
 
-	dbg.Printf("loaded %d items", len(items))
+	if n > 0 {
+		dbg.Printf("added %d item(s)", n)
+	}
+	return added
 }
 
 func (mgr *Manager) removeItem(id int) (item Item, ok bool) {
-	mgr.mtxItems.Lock()
-	defer mgr.mtxItems.Unlock()
+	mgr.mtx.Lock()
+	defer mgr.mtx.Unlock()
 
 	if item, ok = mgr.items[id]; ok {
 		delete(mgr.items, id)
@@ -99,12 +143,55 @@ func (mgr *Manager) removeItem(id int) (item Item, ok bool) {
 
 // handlers
 
+func (mgr *Manager) handleGetStrip(e *g.Intercept) {
+	if mgr.scanCtx != nil {
+		e.Block()
+	}
+}
+
 func (mgr *Manager) handleStripInfo2(e *g.Intercept) {
 	var inv Inventory
 	e.Packet.Read(&inv)
 
 	mgr.loadItems(inv.Items)
 	mgr.updated.Dispatch()
+
+	mgr.mtx.Lock()
+	defer mgr.mtx.Unlock()
+
+	if mgr.scanCtx != nil {
+		e.Block()
+		mgr.scanPage++
+		var last, wrapped bool
+		if len(inv.Items) < 9 {
+			last = true
+		} else {
+			for _, item := range inv.Items {
+				if _, wrapped = mgr.scanItems[item.ItemId]; wrapped {
+					break
+				}
+			}
+		}
+		if !wrapped {
+			dbg.Printf("scanned page %d (%d items)", mgr.scanPage, len(inv.Items))
+		}
+		if last || wrapped {
+			dbg.Printf("completing scan")
+			mgr.scanCtx = nil
+			mgr.scanDone(nil)
+		} else {
+			scanCtx := mgr.scanCtx
+			go func() {
+				select {
+				case <-time.After(550 * time.Millisecond):
+					// get next page
+					mgr.ext.Send(out.GETSTRIP, []byte("next"))
+				case <-scanCtx.Done():
+					// canceled
+				}
+			}()
+		}
+	}
 }
 
 func (mgr *Manager) handleRemoveStripItem(e *g.Intercept) {
