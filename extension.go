@@ -128,6 +128,10 @@ func (e *Ext) IsConnected() bool {
 	return e.isConnected
 }
 
+func (e *Ext) Context() context.Context {
+	return e.connectionCtx
+}
+
 // Gets the remote host of the game server.
 func (e *Ext) RemoteHost() string {
 	return e.remoteHost
