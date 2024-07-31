@@ -8,6 +8,7 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -165,10 +166,14 @@ func NewExtWithConn(conn net.Conn, info ExtInfo) *Ext {
 }
 
 func (ext *Ext) Connect(port int) error {
+	host, ok := os.LookupEnv("GOEARTH_HOST")
+	if !ok {
+		host = "127.0.0.1"
+	}
 	if ext.conn != nil {
 		return fmt.Errorf("the extension is already associated with a connection")
 	}
-	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", host, port))
 	ext.conn = conn
 	return err
 }
