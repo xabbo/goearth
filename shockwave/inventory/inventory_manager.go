@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,6 +14,8 @@ import (
 
 var dbg = debug.NewLogger("[inventory]")
 
+var ErrScanSuccess = fmt.Errorf("scan completed successfully")
+
 // Manager tracks the state of the inventory.
 type Manager struct {
 	ext         *g.Ext
@@ -23,6 +26,7 @@ type Manager struct {
 	scanDone  func(error)
 	scanPage  int
 	scanItems map[int]struct{}
+	scanCh    chan []Item
 
 	mtx   *sync.RWMutex
 	items map[int]Item
@@ -86,11 +90,71 @@ func (mgr *Manager) Scan() context.Context {
 	mgr.scanPage = 0
 	mgr.scanItems = map[int]struct{}{}
 	mgr.scanCtx, mgr.scanDone = context.WithCancelCause(mgr.ext.Context())
+	mgr.scanCh = make(chan []Item)
 
-	// request first page
-	mgr.ext.Send(out.GETSTRIP, []byte("new"))
+	go mgr.performScan()
 
 	return mgr.scanCtx
+}
+
+func (mgr *Manager) performScan() {
+	defer func() {
+		mgr.mtx.Lock()
+		defer mgr.mtx.Unlock()
+		mgr.scanCtx = nil
+	}()
+
+	attempt := 1
+	mgr.ext.Send(out.GETSTRIP, []byte("new"))
+outer:
+	for {
+		select {
+		case items := <-mgr.scanCh:
+			mgr.scanPage++
+			var last, wrapped bool
+			if len(items) < 9 {
+				last = true
+			} else {
+				for _, item := range items {
+					if _, wrapped = mgr.scanItems[item.ItemId]; wrapped {
+						break
+					}
+					mgr.scanItems[item.ItemId] = struct{}{}
+				}
+			}
+			if !wrapped {
+				dbg.Printf("scanned page %d (%d items)", mgr.scanPage, len(items))
+			}
+			if last || wrapped {
+				dbg.Printf("completing scan")
+				mgr.scanDone(ErrScanSuccess)
+			} else {
+				// continue scan
+				select {
+				case <-time.After(550 * time.Millisecond):
+					dbg.Printf("continuing scan")
+					mgr.ext.Send(out.GETSTRIP, []byte("next"))
+				case <-mgr.scanCtx.Done():
+					break outer
+				}
+			}
+		case <-time.After(time.Second):
+			// timed out
+			if attempt < 3 {
+				attempt++
+				// retry scan
+				dbg.Printf("timed out, retrying (attempt %d)", attempt)
+				mgr.ext.Send(out.GETSTRIP, []byte("next"))
+			} else {
+				dbg.Printf("timed out, aborting (attempt %d)", attempt)
+				mgr.scanDone(context.DeadlineExceeded)
+				break outer
+			}
+		case <-mgr.scanCtx.Done():
+			// canceled
+			break outer
+		}
+	}
 }
 
 func (mgr *Manager) CancelScan() bool {
@@ -161,35 +225,10 @@ func (mgr *Manager) handleStripInfo2(e *g.Intercept) {
 
 	if mgr.scanCtx != nil {
 		e.Block()
-		mgr.scanPage++
-		var last, wrapped bool
-		if len(inv.Items) < 9 {
-			last = true
-		} else {
-			for _, item := range inv.Items {
-				if _, wrapped = mgr.scanItems[item.ItemId]; wrapped {
-					break
-				}
-			}
-		}
-		if !wrapped {
-			dbg.Printf("scanned page %d (%d items)", mgr.scanPage, len(inv.Items))
-		}
-		if last || wrapped {
-			dbg.Printf("completing scan")
-			mgr.scanCtx = nil
-			mgr.scanDone(nil)
-		} else {
-			scanCtx := mgr.scanCtx
-			go func() {
-				select {
-				case <-time.After(550 * time.Millisecond):
-					// get next page
-					mgr.ext.Send(out.GETSTRIP, []byte("next"))
-				case <-scanCtx.Done():
-					// canceled
-				}
-			}()
+		select {
+		case mgr.scanCh <- inv.Items:
+		default:
+			dbg.Println("WARNING: failed to send items on inventory scan channel")
 		}
 	}
 }
