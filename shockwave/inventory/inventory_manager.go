@@ -75,7 +75,10 @@ func (mgr *Manager) ItemCount() int {
 }
 
 // Scan performs a full load of the inventory by requesting each inventory page.
-// The context returned cancels without error once the scan has completed.
+// The returned context is canceled once the scan has finished successfully or unsuccessfully.
+// Calling context.Cause on the scan context will return ErrScanSuccess if the scan completed successfully.
+// Otherwise it will return context.DeadlineExceeded if the operation timed out,
+// or context.Canceled if it was explicitly canceled.
 // Multiple calls to Scan while a scan is in progress will return the same context.
 func (mgr *Manager) Scan() context.Context {
 	mgr.mtx.Lock()
@@ -101,12 +104,13 @@ func (mgr *Manager) performScan() {
 	defer func() {
 		mgr.mtx.Lock()
 		defer mgr.mtx.Unlock()
+		mgr.scanDone(context.DeadlineExceeded)
 		mgr.scanCtx = nil
 	}()
 
 	attempt := 1
 	mgr.ext.Send(out.GETSTRIP, []byte("new"))
-outer:
+scan:
 	for {
 		select {
 		case items := <-mgr.scanCh:
@@ -135,7 +139,7 @@ outer:
 					dbg.Printf("continuing scan")
 					mgr.ext.Send(out.GETSTRIP, []byte("next"))
 				case <-mgr.scanCtx.Done():
-					break outer
+					break scan
 				}
 			}
 		case <-time.After(time.Second):
@@ -147,12 +151,11 @@ outer:
 				mgr.ext.Send(out.GETSTRIP, []byte("next"))
 			} else {
 				dbg.Printf("timed out, aborting (attempt %d)", attempt)
-				mgr.scanDone(context.DeadlineExceeded)
-				break outer
+				break scan
 			}
 		case <-mgr.scanCtx.Done():
 			// canceled
-			break outer
+			break scan
 		}
 	}
 }
@@ -208,7 +211,10 @@ func (mgr *Manager) removeItem(id int) (item Item, ok bool) {
 // handlers
 
 func (mgr *Manager) handleGetStrip(e *g.Intercept) {
+	mgr.mtx.RLock()
+	defer mgr.mtx.RUnlock()
 	if mgr.scanCtx != nil {
+		dbg.Printf("blocking getstrip (scan in progress)")
 		e.Block()
 	}
 }
