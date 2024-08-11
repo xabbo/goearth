@@ -481,6 +481,7 @@ func (mgr *Manager) updateEntities(statuses []EntityStatus) []EntityUpdateArgs {
 			cur.Tile = status.Tile
 			cur.Action = status.Action
 			mgr.entities[status.Index] = cur
+			updates = append(updates, EntityUpdateArgs{Pre: pre, Entity: cur})
 		} else {
 			dbg.Printf("WARNING: failed to find entity to update (index: %d)", status.Index)
 		}
@@ -736,6 +737,7 @@ func (mgr *Manager) handleStatus(e *g.Intercept) {
 
 	for _, update := range updates {
 		mgr.entityUpdated.Dispatch(update)
+		dbg.Printf("%s: %s", update.Entity.Name, update.Entity.Action)
 	}
 }
 
