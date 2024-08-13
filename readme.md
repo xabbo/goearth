@@ -7,7 +7,7 @@ Requires [Go](https://go.dev/dl/) 1.22+.
 
 ## Usage
 
-Check out the [examples](.examples/) for reference.
+Check out the [examples](https://github.com/xabbo/examples/tree/main/goearth) for reference.
 
 ### Getting started
 
