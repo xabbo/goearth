@@ -118,13 +118,9 @@ func (h *Headers) TryGet(id Identifier) (header Header, ok bool) {
 	return
 }
 
-// Name gets the name of the header. Returns "?" if it does not exist.
+// Name gets the name of the header. Returns an empty string if it does not exist.
 func (h *Headers) Name(header Header) string {
-	if name, ok := h.names[header]; ok {
-		return name
-	} else {
-		return "?"
-	}
+	return h.names[header]
 }
 
 // Is returns whether the specified header matches the identifier.
