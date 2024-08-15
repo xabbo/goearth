@@ -8,22 +8,41 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+type Interceptor interface {
+	Client() Client
+	Headers() *Headers
+	Send(id Identifier, values ...any)
+	SendPacket(*Packet)
+	Register(*InterceptGroup) InterceptRef
+	Intercept(...Identifier) InterceptBuilder
+}
+
 // Intercept holds the event arguments for an intercepted packet.
 type Intercept struct {
-	ext    *Ext
-	dir    Direction
-	seq    int
-	dereg  bool
-	block  bool
-	Packet *Packet // The intercepted packet.
+	interceptor Interceptor
+	dir         Direction
+	seq         int
+	dereg       bool
+	block       bool
+	Packet      *Packet // The intercepted packet.
+}
+
+func NewIntercept(interceptor Interceptor, packet *Packet, sequence int, blocked bool) *Intercept {
+	return &Intercept{
+		interceptor: interceptor,
+		dir:         packet.Header.Dir,
+		seq:         sequence,
+		block:       blocked,
+		Packet:      packet,
+	}
 }
 
 // Deprecated: Use [Intercept].
 type InterceptArgs = Intercept
 
-// Gets the extension that intercepted this message.
-func (args *Intercept) Ext() *Ext {
-	return args.ext
+// Gets the interceptor that intercepted this message.
+func (args *Intercept) Interceptor() Interceptor {
+	return args.interceptor
 }
 
 // Gets the direction of the intercepted message.
@@ -33,12 +52,12 @@ func (args *Intercept) Dir() Direction {
 
 // Name gets the name of the intercepted packet header.
 func (args *Intercept) Name() string {
-	return args.ext.headers.Name(args.Packet.Header)
+	return args.interceptor.Headers().Name(args.Packet.Header)
 }
 
 // Is returns whether the intercepted packet header matches the specified identifier.
 func (args *Intercept) Is(id Identifier) bool {
-	return args.ext.headers.Is(args.Packet.Header, id)
+	return args.interceptor.Headers().Is(args.Packet.Header, id)
 }
 
 // Gets the incremental packet sequence number.
@@ -49,6 +68,11 @@ func (args *Intercept) Sequence() int {
 // Blocks the intercepted packet.
 func (args *Intercept) Block() {
 	args.block = true
+}
+
+// IsBlocked gets whether the packet has been flagged to be blocked by the interceptor.
+func (args *Intercept) IsBlocked() bool {
+	return args.block
 }
 
 // Deregisters the current intercept handler.
@@ -66,7 +90,7 @@ type InterceptBuilder interface {
 }
 
 type interceptBuilder struct {
-	ext         *Ext
+	ext         Interceptor
 	transient   bool
 	identifiers map[Identifier]struct{}
 }
@@ -80,15 +104,13 @@ func (b interceptBuilder) With(handler InterceptHandler) InterceptRef {
 	identifiers := make(map[Identifier]struct{}, len(b.identifiers))
 	maps.Copy(identifiers, b.identifiers)
 
-	grp := &interceptGroup{
-		ext:         b.ext,
-		identifiers: identifiers,
-		handler:     handler,
+	grp := &InterceptGroup{
+		Identifiers: b.identifiers,
+		Handler:     handler,
+		Transient:   b.transient,
 	}
 
-	b.ext.registerInterceptGroup(grp, b.transient, true)
-
-	return grp
+	return b.ext.Register(grp)
 }
 
 /* Inline interceptor */
@@ -208,14 +230,20 @@ type InterceptRef interface {
 
 /* Intercept group */
 
+type InterceptGroup struct {
+	Identifiers map[Identifier]struct{}
+	Handler     InterceptHandler
+	Transient   bool
+}
+
 // Represents an intercept handler with a group of identifiers.
-type interceptGroup struct {
+type interceptRegistration struct {
 	ext         *Ext
 	identifiers map[Identifier]struct{}
 	handler     InterceptHandler
 	dereg       bool
 }
 
-func (intercept *interceptGroup) Deregister() {
+func (intercept *interceptRegistration) Deregister() {
 	intercept.ext.removeIntercepts(intercept)
 }

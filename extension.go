@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"strconv"
@@ -87,8 +88,8 @@ type Ext struct {
 	globalInterceptLock  sync.Mutex
 	globalIntercept      InterceptEvent
 	interceptsLock       sync.Mutex
-	intercepts           map[Header][]*interceptGroup
-	persistentIntercepts map[*interceptGroup]struct{}
+	intercepts           map[Header][]*interceptRegistration
+	persistentIntercepts map[*interceptRegistration]struct{}
 }
 
 // Defines information about an extension.
@@ -160,8 +161,8 @@ func NewExtWithConn(conn net.Conn, info ExtInfo) *Ext {
 		headers:              NewHeaders(),
 		info:                 info,
 		globalIntercept:      InterceptEvent{setup: resetPos},
-		persistentIntercepts: map[*interceptGroup]struct{}{},
-		intercepts:           map[Header][]*interceptGroup{},
+		persistentIntercepts: map[*interceptRegistration]struct{}{},
+		intercepts:           map[Header][]*interceptRegistration{},
 	}
 }
 
@@ -381,7 +382,17 @@ func (ext *Ext) RunE() (err error) {
 	return
 }
 
-func (ext *Ext) registerInterceptGroup(group *interceptGroup, transient bool, sync bool) {
+func (ext *Ext) Register(group *InterceptGroup) InterceptRef {
+	reg := &interceptRegistration{
+		ext:         ext,
+		identifiers: maps.Clone(group.Identifiers),
+		handler:     group.Handler,
+	}
+	ext.registerInterceptGroup(reg, group.Transient, true)
+	return reg
+}
+
+func (ext *Ext) registerInterceptGroup(group *interceptRegistration, transient bool, sync bool) {
 	if sync {
 		ext.interceptsLock.Lock()
 		defer ext.interceptsLock.Unlock()
@@ -545,7 +556,7 @@ func dispatchIntercept(handlers []InterceptHandler, index int, keep *int, global
 
 	defer func() {
 		if e := recover(); e != nil {
-			err = handlerErr(e, intercept.ext, header, global)
+			err = handlerErr(e, intercept.interceptor, header, global)
 		}
 	}()
 
@@ -606,10 +617,10 @@ func (ext *Ext) handlePacketIntercept(p *Packet) (err error) {
 	}
 
 	intercept := &Intercept{
-		ext:   ext,
-		dir:   dir,
-		seq:   seq,
-		block: blocked,
+		interceptor: ext,
+		dir:         dir,
+		seq:         seq,
+		block:       blocked,
 		Packet: &Packet{
 			Client: ext.client.Type,
 			Header: Header{dir, headerValue},
@@ -681,7 +692,7 @@ func (ext *Ext) dispatchGlobalIntercepts(hdr Header, args *Intercept) (err error
 	return
 }
 
-func (ext *Ext) dispatchInterceptGroup(hdr Header, intercept *interceptGroup, args *Intercept) (err error) {
+func (ext *Ext) dispatchInterceptGroup(hdr Header, intercept *interceptRegistration, args *Intercept) (err error) {
 	if intercept.dereg {
 		return
 	}
@@ -698,20 +709,20 @@ func (ext *Ext) dispatchInterceptGroup(hdr Header, intercept *interceptGroup, ar
 	return
 }
 
-func (ext *Ext) snapshotIntercepts(header Header) (snapshot []*interceptGroup, exists bool) {
+func (ext *Ext) snapshotIntercepts(header Header) (snapshot []*interceptRegistration, exists bool) {
 	ext.interceptsLock.Lock()
 	defer ext.interceptsLock.Unlock()
 
 	src, exists := ext.intercepts[header]
 	if exists {
-		snapshot = make([]*interceptGroup, len(src))
+		snapshot = make([]*interceptRegistration, len(src))
 		copy(snapshot, src)
 	}
 	return
 }
 
 func (ext *Ext) dispatchIntercepts(hdr Header, args *Intercept) (err error) {
-	removals := []*interceptGroup{}
+	removals := []*interceptRegistration{}
 
 	header := args.Packet.Header
 	if intercepts, exist := ext.snapshotIntercepts(header); exist {
@@ -736,7 +747,7 @@ func (ext *Ext) dispatchIntercepts(hdr Header, args *Intercept) (err error) {
 	return
 }
 
-func (ext *Ext) removeIntercepts(intercepts ...*interceptGroup) {
+func (ext *Ext) removeIntercepts(intercepts ...*interceptRegistration) {
 	ext.interceptsLock.Lock()
 	defer ext.interceptsLock.Unlock()
 
@@ -761,10 +772,10 @@ func (ext *Ext) removeIntercepts(intercepts ...*interceptGroup) {
 	}
 }
 
-func handlerErr(e any, ext *Ext, hdr Header, global bool) error {
+func handlerErr(e any, interceptor Interceptor, hdr Header, global bool) error {
 	handlerType := "global intercept handler"
 	if !global {
-		if name, ok := ext.headers.names[hdr]; ok {
+		if name, ok := interceptor.Headers().names[hdr]; ok {
 			handlerType = fmt.Sprintf("%s %s handler", hdr.Dir.String(), name)
 		} else {
 			handlerType = fmt.Sprintf("%s (%d) handler", hdr.Dir.String(), hdr.Value)
