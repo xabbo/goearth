@@ -11,7 +11,7 @@ var dbg = debug.NewLogger("[profile]")
 
 // Manager tracks the state of the user's profile.
 type Manager struct {
-	ext              *g.Ext
+	ix               g.Interceptor
 	requestOnConnect bool
 
 	updated g.Event[Args]
@@ -19,12 +19,12 @@ type Manager struct {
 	Profile
 }
 
-func NewManager(ext *g.Ext) *Manager {
-	mgr := &Manager{ext: ext}
-	ext.Initialized(mgr.onInitialized)
-	ext.Connected(mgr.onConnected)
-	ext.Disconnected(mgr.onDisconnected)
-	ext.Intercept(in.USER_OBJ).With(mgr.handleUserObj)
+func NewManager(ix g.Interceptor) *Manager {
+	mgr := &Manager{ix: ix}
+	ix.Initialized(mgr.onInitialized)
+	ix.Connected(mgr.onConnected)
+	ix.Disconnected(mgr.onDisconnected)
+	ix.Intercept(in.USER_OBJ).With(mgr.handleUserObj)
 	return mgr
 }
 
@@ -39,7 +39,7 @@ func (mgr *Manager) onInitialized(e g.InitArgs) {
 
 func (mgr *Manager) onConnected(e g.ConnectArgs) {
 	if mgr.requestOnConnect {
-		mgr.ext.Send(out.INFORETRIEVE)
+		mgr.ix.Send(out.INFORETRIEVE)
 		dbg.Println("requested profile")
 	}
 }

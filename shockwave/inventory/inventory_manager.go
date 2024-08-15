@@ -18,7 +18,7 @@ var ErrScanSuccess = fmt.Errorf("scan completed successfully")
 
 // Manager tracks the state of the inventory.
 type Manager struct {
-	ext         *g.Ext
+	ix          g.Interceptor
 	updated     g.VoidEvent
 	itemRemoved g.Event[ItemArgs]
 
@@ -33,15 +33,15 @@ type Manager struct {
 }
 
 // NewManager creates a new inventory Manager using the provided extension.
-func NewManager(ext *g.Ext) *Manager {
+func NewManager(ix g.Interceptor) *Manager {
 	mgr := &Manager{
-		ext:   ext,
+		ix:    ix,
 		mtx:   &sync.RWMutex{},
 		items: map[int]Item{},
 	}
-	ext.Intercept(out.GETSTRIP).With(mgr.handleGetStrip)
-	ext.Intercept(in.STRIPINFO_2).With(mgr.handleStripInfo2)
-	ext.Intercept(in.REMOVESTRIPITEM).With(mgr.handleRemoveStripItem)
+	ix.Intercept(out.GETSTRIP).With(mgr.handleGetStrip)
+	ix.Intercept(in.STRIPINFO_2).With(mgr.handleStripInfo2)
+	ix.Intercept(in.REMOVESTRIPITEM).With(mgr.handleRemoveStripItem)
 	return mgr
 }
 
@@ -92,7 +92,7 @@ func (mgr *Manager) Scan() context.Context {
 
 	mgr.scanPage = 0
 	mgr.scanItems = map[int]struct{}{}
-	mgr.scanCtx, mgr.scanDone = context.WithCancelCause(mgr.ext.Context())
+	mgr.scanCtx, mgr.scanDone = context.WithCancelCause(mgr.ix.Context())
 	mgr.scanCh = make(chan []Item)
 
 	go mgr.performScan()
@@ -109,7 +109,7 @@ func (mgr *Manager) performScan() {
 	}()
 
 	attempt := 1
-	mgr.ext.Send(out.GETSTRIP, []byte("new"))
+	mgr.ix.Send(out.GETSTRIP, []byte("new"))
 scan:
 	for {
 		select {
@@ -137,7 +137,7 @@ scan:
 				select {
 				case <-time.After(550 * time.Millisecond):
 					dbg.Printf("continuing scan")
-					mgr.ext.Send(out.GETSTRIP, []byte("next"))
+					mgr.ix.Send(out.GETSTRIP, []byte("next"))
 				case <-mgr.scanCtx.Done():
 					break scan
 				}
@@ -148,7 +148,7 @@ scan:
 				attempt++
 				// retry scan
 				dbg.Printf("timed out, retrying (attempt %d)", attempt)
-				mgr.ext.Send(out.GETSTRIP, []byte("next"))
+				mgr.ix.Send(out.GETSTRIP, []byte("next"))
 			} else {
 				dbg.Printf("timed out, aborting (attempt %d)", attempt)
 				break scan

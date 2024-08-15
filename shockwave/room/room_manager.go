@@ -13,7 +13,7 @@ import (
 var dbg = debug.NewLogger("[room]")
 
 type Manager struct {
-	ext *g.Ext
+	ix g.Interceptor
 
 	entered       g.Event[Args]
 	rightsUpdated g.VoidEvent
@@ -54,9 +54,9 @@ type Manager struct {
 	entities map[int]Entity
 }
 
-func NewManager(ext *g.Ext) *Manager {
+func NewManager(ix g.Interceptor) *Manager {
 	mgr := &Manager{
-		ext:       ext,
+		ix:        ix,
 		mtxRoom:   &sync.RWMutex{},
 		mtxCache:  &sync.RWMutex{},
 		infoCache: map[int]Info{},
@@ -67,24 +67,24 @@ func NewManager(ext *g.Ext) *Manager {
 		mtxEnts:   &sync.RWMutex{},
 		entities:  map[int]Entity{},
 	}
-	ext.Intercept(in.FLATINFO).With(mgr.handleFlatInfo)
-	ext.Intercept(in.OPC_OK).With(mgr.handleOpcOk)
-	ext.Intercept(in.ROOM_READY).With(mgr.handleRoomReady)
-	ext.Intercept(in.ROOM_RIGHTS, in.ROOM_RIGHTS_2, in.ROOM_RIGHTS_3).With(mgr.handleRoomRights)
-	ext.Intercept(in.HEIGHTMAP).With(mgr.handleHeightmap)
-	ext.Intercept(in.ACTIVEOBJECTS).With(mgr.handleActiveObjects)
-	ext.Intercept(in.ACTIVEOBJECT_ADD).With(mgr.handleActiveObjectAdd)
-	ext.Intercept(in.ACTIVEOBJECT_UPDATE).With(mgr.handleActiveObjectUpdate)
-	ext.Intercept(in.ACTIVEOBJECT_REMOVE).With(mgr.handleActiveObjectRemove)
-	ext.Intercept(in.SLIDEOBJECTBUNDLE).With(mgr.handleSlideObjectBundle)
-	ext.Intercept(in.ITEMS).With(mgr.handleItems)
-	ext.Intercept(in.ITEMS_2, in.UPDATEITEM).With(mgr.handleAddOrUpdateItem)
-	ext.Intercept(in.REMOVEITEM).With(mgr.handleRemoveItem)
-	ext.Intercept(in.USERS).With(mgr.handleUsers)
-	ext.Intercept(in.STATUS).With(mgr.handleStatus)
-	ext.Intercept(in.CHAT, in.CHAT_2, in.CHAT_3).With(mgr.handleChat)
-	ext.Intercept(in.LOGOUT).With(mgr.handleLogout)
-	ext.Intercept(in.CLC).With(mgr.handleClc)
+	ix.Intercept(in.FLATINFO).With(mgr.handleFlatInfo)
+	ix.Intercept(in.OPC_OK).With(mgr.handleOpcOk)
+	ix.Intercept(in.ROOM_READY).With(mgr.handleRoomReady)
+	ix.Intercept(in.ROOM_RIGHTS, in.ROOM_RIGHTS_2, in.ROOM_RIGHTS_3).With(mgr.handleRoomRights)
+	ix.Intercept(in.HEIGHTMAP).With(mgr.handleHeightmap)
+	ix.Intercept(in.ACTIVEOBJECTS).With(mgr.handleActiveObjects)
+	ix.Intercept(in.ACTIVEOBJECT_ADD).With(mgr.handleActiveObjectAdd)
+	ix.Intercept(in.ACTIVEOBJECT_UPDATE).With(mgr.handleActiveObjectUpdate)
+	ix.Intercept(in.ACTIVEOBJECT_REMOVE).With(mgr.handleActiveObjectRemove)
+	ix.Intercept(in.SLIDEOBJECTBUNDLE).With(mgr.handleSlideObjectBundle)
+	ix.Intercept(in.ITEMS).With(mgr.handleItems)
+	ix.Intercept(in.ITEMS_2, in.UPDATEITEM).With(mgr.handleAddOrUpdateItem)
+	ix.Intercept(in.REMOVEITEM).With(mgr.handleRemoveItem)
+	ix.Intercept(in.USERS).With(mgr.handleUsers)
+	ix.Intercept(in.STATUS).With(mgr.handleStatus)
+	ix.Intercept(in.CHAT, in.CHAT_2, in.CHAT_3).With(mgr.handleChat)
+	ix.Intercept(in.LOGOUT).With(mgr.handleLogout)
+	ix.Intercept(in.CLC).With(mgr.handleClc)
 	return mgr
 }
 

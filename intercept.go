@@ -9,12 +9,17 @@ import (
 )
 
 type Interceptor interface {
+	Context() context.Context
 	Client() Client
 	Headers() *Headers
 	Send(id Identifier, values ...any)
 	SendPacket(*Packet)
 	Register(*InterceptGroup) InterceptRef
 	Intercept(...Identifier) InterceptBuilder
+
+	Initialized(EventHandler[InitArgs])
+	Connected(EventHandler[ConnectArgs])
+	Disconnected(VoidHandler)
 }
 
 // Intercept holds the event arguments for an intercepted packet.
