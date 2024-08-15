@@ -273,7 +273,7 @@ func (e *Ext) Recv(identifiers ...Identifier) InlineInterceptor {
 	result := make(chan *Packet, 1)
 	context.AfterFunc(ctx, func() { close(result) })
 	intercept := &inlineInterceptor{
-		ext:         e,
+		ix:          e,
 		identifiers: identifiers,
 		result:      result,
 		timeout:     time.AfterFunc(time.Minute, cancel),

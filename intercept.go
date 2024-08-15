@@ -153,7 +153,7 @@ type InlineInterceptor interface {
 }
 
 type inlineInterceptor struct {
-	ext         *Ext
+	ix          Interceptor
 	identifiers []Identifier
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -163,6 +163,20 @@ type inlineInterceptor struct {
 	cond        func(*Packet) bool
 	result      chan *Packet
 	ref         InterceptRef
+}
+
+func NewInlineInterceptor(interceptor Interceptor, identifiers []Identifier) InlineInterceptor {
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan *Packet, 1)
+	context.AfterFunc(ctx, func() { close(result) })
+	return &inlineInterceptor{
+		ix:          interceptor,
+		identifiers: identifiers,
+		ctx:         ctx,
+		cancel:      cancel,
+		timeout:     time.AfterFunc(time.Minute, cancel),
+		result:      make(chan *Packet, 1),
+	}
 }
 
 // Handles the intercept logic for an inline interceptor.
@@ -193,7 +207,7 @@ func (i *inlineInterceptor) interceptHandler(e *Intercept) {
 
 func (i *inlineInterceptor) bindIntercept() {
 	i.bindOnce.Do(func() {
-		i.ref = i.ext.Intercept(i.identifiers...).Transient().With(i.interceptHandler)
+		i.ref = i.ix.Intercept(i.identifiers...).Transient().With(i.interceptHandler)
 	})
 }
 
