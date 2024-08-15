@@ -95,9 +95,20 @@ type InterceptBuilder interface {
 }
 
 type interceptBuilder struct {
-	ext         Interceptor
+	ix          Interceptor
 	transient   bool
 	identifiers map[Identifier]struct{}
+}
+
+func NewInterceptBuilder(interceptor Interceptor, ids ...Identifier) InterceptBuilder {
+	builder := &interceptBuilder{
+		ix:          interceptor,
+		identifiers: map[Identifier]struct{}{},
+	}
+	for _, id := range ids {
+		builder.identifiers[id] = struct{}{}
+	}
+	return builder
 }
 
 func (b interceptBuilder) Transient() InterceptBuilder {
@@ -115,7 +126,7 @@ func (b interceptBuilder) With(handler InterceptHandler) InterceptRef {
 		Transient:   b.transient,
 	}
 
-	return b.ext.Register(grp)
+	return b.ix.Register(grp)
 }
 
 /* Inline interceptor */

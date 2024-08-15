@@ -236,7 +236,7 @@ func (ext *Ext) Intercept(identifiers ...Identifier) InterceptBuilder {
 	}
 
 	return &interceptBuilder{
-		ext:         ext,
+		ix:          ext,
 		identifiers: set,
 	}
 }
