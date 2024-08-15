@@ -19,17 +19,17 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.21'
+        go-version: '1.23'
 
     - name: Build
       run: go build -v ./...
 
     - name: Test
       run: go test -v ./...
-    
+
     - name: Install CLI
       run: go install ./cmd/goearth
-    
+
     - name: Test CLI
       working-directory: ./tests
       run: chmod +x test-cli.sh && ./test-cli.sh
