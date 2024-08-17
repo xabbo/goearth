@@ -479,6 +479,8 @@ func (mgr *Manager) updateEntities(statuses []EntityStatus) []EntityUpdateArgs {
 		if ok {
 			cur := pre
 			cur.Tile = status.Tile
+			cur.Dir = status.BodyDir
+			cur.HeadDir = status.HeadDir
 			cur.Action = status.Action
 			mgr.entities[status.Index] = cur
 			updates = append(updates, EntityUpdateArgs{Pre: pre, Entity: cur})
