@@ -19,7 +19,7 @@ func NewManager(ext *g.Ext) *Manager {
 }
 
 func (mgr *Manager) Navigate(nodeId int) *Node {
-	mgr.ext.Send(out.NAVIGATE, false /* hide full */, nodeId, 0 /* depth */)
+	mgr.ext.Send(out.NAVIGATE, false /* hide full */, nodeId, 1 /* depth */)
 	if pkt := mgr.ext.Recv(in.NAVNODEINFO).If(nodeIdEq(nodeId)).TimeoutSec(10).Block().Wait(); pkt != nil {
 		var navNodeInfo NodeInfo
 		navNodeInfo.Parse(pkt, &pkt.Pos)
