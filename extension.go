@@ -636,7 +636,7 @@ func (ext *Ext) handlePacketIntercept(p *Packet) (err error) {
 	}
 
 	originalHeader := intercept.Packet.Header
-	err = ext.dispatchGlobalIntercepts(originalHeader, intercept)
+	err = ext.dispatchGlobalIntercepts(intercept)
 	if err != nil {
 		return
 	}
@@ -675,7 +675,7 @@ func (ext *Ext) handlePacketIntercept(p *Packet) (err error) {
 	return
 }
 
-func (ext *Ext) dispatchGlobalIntercepts(hdr Header, args *Intercept) (err error) {
+func (ext *Ext) dispatchGlobalIntercepts(args *Intercept) (err error) {
 	ext.globalInterceptLock.Lock()
 	defer ext.globalInterceptLock.Unlock()
 
