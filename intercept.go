@@ -14,6 +14,7 @@ type Interceptor interface {
 	Headers() *Headers
 	Send(id Identifier, values ...any)
 	SendPacket(*Packet)
+	Recv(identifiers ...Identifier) InlineInterceptor
 	Register(*InterceptGroup) InterceptRef
 	Intercept(...Identifier) InterceptBuilder
 
