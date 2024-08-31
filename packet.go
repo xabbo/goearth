@@ -561,8 +561,8 @@ func (p *Packet) WriteBoolPtr(pos *int, value bool) *Packet {
 		VL64(b).Compose(p, pos)
 	} else {
 		p.Data[*pos] = b
+		*pos++
 	}
-	*pos++
 	return p
 }
 
