@@ -5,11 +5,12 @@ type Info struct {
 	Id         int
 	Name       string
 	Gender     int
-	CustomText string
+	Motto string
 	Online     bool
-	Location   string
+	CanFollow bool
 	LastAccess string
-	FigureData string
+	Figure string
+	CategoryId int
 }
 
 type Request struct {
