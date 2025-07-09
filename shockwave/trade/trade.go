@@ -22,10 +22,10 @@ type Offer struct {
 	Accepted  bool
 	UserId    int
 	ItemCount int
-	Items     []TradeItem
+	Items     []Item
 }
 
-type TradeItem struct {
+type Item struct {
 	ItemId     int
 	Type       string
 	Id         int
@@ -45,29 +45,29 @@ type TradeItem struct {
 	PosterName string
 }
 
-func (item *TradeItem) Parse(p *g.Packet) {
-	*item = TradeItem{}
-	item.ItemId = p.ReadInt()
-	item.Type = p.ReadString()
-	item.Id = p.ReadInt()
-	item.ClassId = p.ReadInt()
-	item.Class = p.ReadString()
+func (item *Item) Parse(p *g.Packet, pos *int) {
+	*item = Item{}
+	item.ItemId = p.ReadIntPtr(pos)
+	item.Type = p.ReadStringPtr(pos)
+	item.Id = p.ReadIntPtr(pos)
+	item.ClassId = p.ReadIntPtr(pos)
+	item.Class = p.ReadStringPtr(pos)
 	if item.Type == "s" {
-		item.Colors = p.ReadString()
-		item.DimX = p.ReadInt()
-		item.DimY = p.ReadInt()
+		item.Colors = p.ReadStringPtr(pos)
+		item.DimX = p.ReadIntPtr(pos)
+		item.DimY = p.ReadIntPtr(pos)
 	} else {
 		item.DimX = 1
 		item.DimY = 1
 	}
-	item.Category = p.ReadString()
-	item.Groupable = p.ReadInt()
-	item.Data = p.ReadString()
-	item.Day = p.ReadInt()
-	item.Month = p.ReadInt()
-	item.Year = p.ReadInt()
+	item.Category = p.ReadStringPtr(pos)
+	item.Groupable = p.ReadIntPtr(pos)
+	item.Data = p.ReadStringPtr(pos)
+	item.Day = p.ReadIntPtr(pos)
+	item.Month = p.ReadIntPtr(pos)
+	item.Year = p.ReadIntPtr(pos)
 	if item.Type == "s" {
-		item.SongId = p.ReadInt()
+		item.SongId = p.ReadIntPtr(pos)
 		item.SongName = "furni_" + item.Class + "_name"
 		item.SongDesc = "furni_" + item.Class + "_desc"
 	} else {

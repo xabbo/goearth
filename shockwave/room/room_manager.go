@@ -207,14 +207,14 @@ func (mgr *Manager) EntityByName(name string) *Entity {
 	return nil
 }
 
-// EntityByUserId gets the entity with the User Id.
+// EntityByUserId gets the entity by the Id.
 // Returns nil if it does not exist.
-func (mgr *Manager) EntityByUserId(UserId int) *Entity {
+func (mgr *Manager) EntityById(UserId int) *Entity {
 	mgr.mtxEnts.RLock()
 	defer mgr.mtxEnts.RUnlock()
 
 	for _, ent := range mgr.entities {
-		if ent.UserId == UserId {
+		if ent.Id == UserId {
 			return &ent
 		}
 	}

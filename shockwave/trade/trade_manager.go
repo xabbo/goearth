@@ -28,7 +28,7 @@ func NewManager(ext g.Interceptor) *Manager {
 	ext.Intercept(in.TRADE_ITEMS).With(mgr.handleTradeItems)
 	ext.Intercept(in.TRADE_ACCEPT).With(mgr.handleTradeAccept)
 	ext.Intercept(in.TRADE_CLOSE).With(mgr.handleTradeClose)
-	ext.Intercept(in.TRADE_COMPLETED_2).With(mgr.handleTradeCompleted2)
+	ext.Intercept(in.TRADE_COMPLETED).With(mgr.handleTradeCompleted2)
 	return mgr
 }
 
@@ -61,7 +61,7 @@ func (mgr *Manager) handleTradeItems(e *g.Intercept) {
 		offer.UserId = e.Packet.ReadInt()
 		furniCount := e.Packet.ReadInt()
 		for j := 0; j < furniCount; j++ {
-			var item TradeItem
+			var item Item
 			item.Parse(e.Packet)
 			offer.Items = append(offer.Items, item)
 		}
