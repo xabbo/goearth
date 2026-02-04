@@ -1,9 +1,6 @@
 package trade
 
 import (
-	"strconv"
-	"strings"
-
 	g "xabbo.b7c.io/goearth"
 	"xabbo.b7c.io/goearth/internal/debug"
 	"xabbo.b7c.io/goearth/shockwave/in"
@@ -31,14 +28,14 @@ func NewManager(ext g.Interceptor) *Manager {
 	ext.Intercept(in.TRADE_ITEMS).With(mgr.handleTradeItems)
 	ext.Intercept(in.TRADE_ACCEPT).With(mgr.handleTradeAccept)
 	ext.Intercept(in.TRADE_CLOSE).With(mgr.handleTradeClose)
-	ext.Intercept(in.TRADE_COMPLETED_2).With(mgr.handleTradeCompleted2)
+	ext.Intercept(in.TRADE_COMPLETED).With(mgr.handleTradeCompleted2)
 	return mgr
 }
 
 // Offer offers an item with the specified ID in the current trade.
 func (mgr *Manager) Offer(itemId int) {
-	// The item ID is a raw string with no length header.
-	mgr.ix.Send(out.TRADE_ADDITEM, []byte(strconv.Itoa(itemId)))
+	// The item ID was changed from a string to int
+	mgr.ix.Send(out.TRADE_ADDITEM, itemId)
 }
 
 // OfferItem offers the specified inventory item in the current trade.
@@ -58,7 +55,18 @@ func (mgr *Manager) Unaccept() {
 
 func (mgr *Manager) handleTradeItems(e *g.Intercept) {
 	var offers Offers
-	e.Packet.Read(&offers)
+
+	for i := 0; i < 2; i++ {
+		var offer Offer
+		offer.UserId = e.Packet.ReadInt()
+		furniCount := e.Packet.ReadInt()
+		for j := 0; j < furniCount; j++ {
+			var item Item
+			item.Parse(e.Packet, &e.Packet.Pos)
+			offer.Items = append(offer.Items, item)
+		}
+		offers[i] = offer
+	}
 
 	args := Args{Offers: offers}
 
@@ -83,8 +91,10 @@ func (mgr *Manager) handleTradeItems(e *g.Intercept) {
 	dbg.Printf("trade updated (opened: %t)", args.Opened)
 	// TODO: check if this loop gets optimized away when !debug.Enabled
 	for _, offer := range offers {
-		dbg.Printf("%s: %d item(s) (accepted: %t)", offer.Name, len(offer.Items), offer.Accepted)
+		dbg.Printf("UserId: %d, %d item(s) (accepted: %t)", offer.UserId, len(offer.Items), offer.Accepted)
 	}
+
+	dbg.Println("Trade updated")
 }
 
 func (mgr *Manager) handleTradeAccept(e *g.Intercept) {
@@ -92,19 +102,12 @@ func (mgr *Manager) handleTradeAccept(e *g.Intercept) {
 		return
 	}
 
-	s := e.Packet.ReadString()
-	fields := strings.SplitN(s, "/", 2)
-	if len(fields) != 2 {
-		dbg.Printf("WARNING: fields length != 2: %q (%v)", s, fields)
-		return
-	}
-
-	name := fields[0]
-	accepted := fields[1] == "true"
+	userId := e.Packet.ReadInt()
+	accepted := e.Packet.ReadBool()
 
 	var offer *Offer
-	for i := range 2 {
-		if mgr.Offers[i].Name == name {
+	for i := 0; i < 2; i++ {
+		if mgr.Offers[i].UserId == userId {
 			offer = &mgr.Offers[i]
 			break
 		}
@@ -112,9 +115,9 @@ func (mgr *Manager) handleTradeAccept(e *g.Intercept) {
 
 	if offer != nil {
 		offer.Accepted = accepted
-		mgr.accepted.Dispatch(AcceptArgs{name, accepted})
+		mgr.accepted.Dispatch(AcceptArgs{UserId: userId, Accepted: accepted})
 	} else {
-		dbg.Printf("WARNING: failed to find offer for %q", name)
+		dbg.Printf("WARNING: failed to find offer for UserId %d", userId)
 	}
 }
 

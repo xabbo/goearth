@@ -10,7 +10,7 @@ type Args struct {
 
 // AcceptArgs holds the arguments for trade accept events.
 type AcceptArgs struct {
-	Name     string
+	UserId     int
 	Accepted bool
 }
 

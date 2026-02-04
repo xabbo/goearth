@@ -207,6 +207,20 @@ func (mgr *Manager) EntityByName(name string) *Entity {
 	return nil
 }
 
+// EntityByUserId gets the entity by the Id.
+// Returns nil if it does not exist.
+func (mgr *Manager) EntityById(UserId int) *Entity {
+	mgr.mtxEnts.RLock()
+	defer mgr.mtxEnts.RUnlock()
+
+	for _, ent := range mgr.entities {
+		if ent.Id == UserId {
+			return &ent
+		}
+	}
+	return nil
+}
+
 // Entities iterates over all entities currently in the room.
 func (mgr *Manager) Entities(yield func(ent Entity) bool) {
 	mgr.mtxEnts.RLock()
