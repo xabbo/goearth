@@ -245,7 +245,7 @@ type Tile struct {
     Z    float32 
 }
 
-func (v Tile) Compose(w PacketWriter) {
+func (v Tile) Compose(w g.PacketWriter) {
     // perform custom composing logic here
     w.WriteInt(v.X)
     w.WriteInt(v.Y)
