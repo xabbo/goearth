@@ -11,9 +11,9 @@ type Inventory struct {
 	Items []Item
 }
 
-func (inv *Inventory) Parse(p *g.Packet, pos *int) {
+func (inv *Inventory) Parse(r g.PacketReader) {
 	*inv = Inventory{}
-	p.ReadPtr(pos, &inv.Items)
+	r.Read(&inv.Items)
 }
 
 type ItemType string
@@ -23,8 +23,8 @@ const (
 	Wall  ItemType = "I"
 )
 
-func (itemType *ItemType) Parse(p *g.Packet, pos *int) {
-	*itemType = ItemType(p.ReadStringPtr(pos))
+func (itemType *ItemType) Parse(r g.PacketReader) {
+	*itemType = ItemType(r.ReadString())
 }
 
 // Item represents an inventory item.
@@ -45,13 +45,13 @@ func (item Item) String() string {
 	return item.Class + "(" + strconv.Itoa(item.ItemId) + ")"
 }
 
-func (item *Item) Parse(p *g.Packet, pos *int) {
+func (item *Item) Parse(r g.PacketReader) {
 	*item = Item{}
-	p.ReadPtr(pos, &item.ItemId, &item.Pos, &item.Type, &item.Id, &item.Class)
+	r.Read(&item.ItemId, &item.Pos, &item.Type, &item.Id, &item.Class)
 	switch item.Type {
 	case "S":
-		p.ReadPtr(pos, &item.DimX, &item.DimY, &item.Colors)
+		r.Read(&item.DimX, &item.DimY, &item.Colors)
 	case "I":
-		p.ReadPtr(pos, &item.Props)
+		r.Read(&item.Props)
 	}
 }

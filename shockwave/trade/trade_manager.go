@@ -62,7 +62,7 @@ func (mgr *Manager) handleTradeItems(e *g.Intercept) {
 		furniCount := e.Packet.ReadInt()
 		for j := 0; j < furniCount; j++ {
 			var item Item
-			item.Parse(e.Packet, &e.Packet.Pos)
+			e.Packet.Read(&item)
 			offer.Items = append(offer.Items, item)
 		}
 		offers[i] = offer

@@ -9,10 +9,10 @@ import (
 // Index is a map of catalog page ID -> page name.
 type Index map[string]string
 
-func (index *Index) Parse(p *g.Packet, pos *int) {
+func (index *Index) Parse(r g.PacketReader) {
 	*index = map[string]string{}
 
-	lines := strings.Split(p.ReadStringPtr(pos), "\r")
+	lines := strings.Split(r.ReadString(), "\r")
 	for _, line := range lines {
 		fields := strings.SplitN(line, "\t", 2)
 		if len(fields) != 2 {

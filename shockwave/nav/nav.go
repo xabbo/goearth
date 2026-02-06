@@ -14,10 +14,10 @@ type NodeInfo struct {
 	Root     Node
 }
 
-func (info *NodeInfo) Parse(p *g.Packet, pos *int) {
+func (info *NodeInfo) Parse(r g.PacketReader) {
 	*info = NodeInfo{}
-	info.NodeMask = p.ReadIntPtr(pos)
-	info.Root.Parse(p, pos)
+	info.NodeMask = r.ReadInt()
+	r.Read(&info.Root)
 
 	nodeMap := map[int]*Node{info.Root.Id: &info.Root}
 
@@ -26,9 +26,9 @@ func (info *NodeInfo) Parse(p *g.Packet, pos *int) {
 		skips = map[int]int{}
 	}
 
-	for p.Pos < len(p.Data) {
+	for r.Available() > 0 {
 		var node Node
-		node.Parse(p, pos)
+		r.Read(&node)
 		// if node.Id <= 0 {
 		// 	break
 		// }
@@ -156,20 +156,20 @@ func (root *Node) Rooms() (rooms []Room) {
 	return
 }
 
-func (node *Node) Parse(p *g.Packet, pos *int) {
+func (node *Node) Parse(r g.PacketReader) {
 	*node = Node{}
-	node.Id = p.ReadIntPtr(pos)
+	node.Id = r.ReadInt()
 	// Have not yet encountered this case in testing,
 	// and removing it makes this compatible with
 	// favourite room results (its node ID is 0).
 	// if node.Id <= 0 {
 	//   return
 	// }
-	node.Type = NodeType(p.ReadIntPtr(pos))
-	name := p.ReadStringPtr(pos)
-	userCount := p.ReadIntPtr(pos)
-	maxUsers := p.ReadIntPtr(pos)
-	node.ParentId = p.ReadIntPtr(pos)
+	node.Type = NodeType(r.ReadInt())
+	name := r.ReadString()
+	userCount := r.ReadInt()
+	maxUsers := r.ReadInt()
+	node.ParentId = r.ReadInt()
 	switch node.Type {
 	case NodeCategory:
 		node.Data = &Category{
@@ -184,26 +184,26 @@ func (node *Node) Parse(p *g.Packet, pos *int) {
 			Name:         name,
 			UserCount:    userCount,
 			MaxUsers:     maxUsers,
-			UnitId:       p.ReadStringPtr(pos),
-			Port:         strconv.Itoa(p.ReadIntPtr(pos)),
-			Door:         strconv.Itoa(p.ReadIntPtr(pos)),
-			Casts:        p.ReadStringPtr(pos),
-			UsersInQueue: p.ReadIntPtr(pos),
-			Visible:      p.ReadBoolPtr(pos),
+			UnitId:       r.ReadString(),
+			Port:         strconv.Itoa(r.ReadInt()),
+			Door:         strconv.Itoa(r.ReadInt()),
+			Casts:        r.ReadString(),
+			UsersInQueue: r.ReadInt(),
+			Visible:      r.ReadBool(),
 		}
 	case NodeUserRoom:
 		node.Type = NodeCategory
-		node.Children = parseCategoryRoomNodes(node, p, pos)
+		node.Children = parseCategoryRoomNodes(node, r)
 	default:
 		panic(fmt.Errorf("unknown node type: %d", node.Type))
 	}
 }
 
-func parseCategoryRoomNodes(parent *Node, p *g.Packet, pos *int) []Node {
-	n := p.ReadIntPtr(pos)
+func parseCategoryRoomNodes(parent *Node, r g.PacketReader) []Node {
+	n := r.ReadInt()
 	nodes := make([]Node, 0, n)
 	for range n {
-		id := p.ReadIntPtr(pos)
+		id := r.ReadInt()
 		node := Node{
 			Id:       id,
 			Type:     NodeUserRoom,
@@ -211,12 +211,12 @@ func parseCategoryRoomNodes(parent *Node, p *g.Packet, pos *int) []Node {
 			Parent:   parent,
 			Data: &Room{
 				Id:          id,
-				Name:        p.ReadStringPtr(pos),
-				Owner:       p.ReadStringPtr(pos),
-				Door:        p.ReadStringPtr(pos),
-				UserCount:   p.ReadIntPtr(pos),
-				MaxUsers:    p.ReadIntPtr(pos),
-				Description: p.ReadStringPtr(pos),
+				Name:        r.ReadString(),
+				Owner:       r.ReadString(),
+				Door:        r.ReadString(),
+				UserCount:   r.ReadInt(),
+				MaxUsers:    r.ReadInt(),
+				Description: r.ReadString(),
 				Visible:     true,
 			},
 		}
@@ -227,9 +227,9 @@ func parseCategoryRoomNodes(parent *Node, p *g.Packet, pos *int) []Node {
 
 type Rooms []Room
 
-func (rooms *Rooms) Parse(p *g.Packet, pos *int) {
+func (rooms *Rooms) Parse(r g.PacketReader) {
 	*rooms = Rooms{}
-	s := p.ReadStringPtr(pos)
+	s := r.ReadString()
 	lines := strings.Split(s, "\r")
 	for _, line := range lines {
 		if line == "" {

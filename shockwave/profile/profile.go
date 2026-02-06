@@ -23,9 +23,9 @@ type Profile struct {
 	OfflineMessagingEnabled bool
 }
 
-func (profile *Profile) Parse(p *g.Packet, pos *int) {
+func (profile *Profile) Parse(r g.PacketReader) {
 	*profile = Profile{}
-	for _, line := range strings.Split(p.ReadStringPtr(pos), "\r") {
+	for _, line := range strings.Split(r.ReadString(), "\r") {
 		kvp := strings.SplitN(line, "=", 2)
 		if len(kvp) != 2 {
 			dbg.Printf("WARNING: line split length != 2: %q", line)

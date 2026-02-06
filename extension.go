@@ -424,7 +424,7 @@ func wrapPacket(packet *Packet) *Packet {
 	}
 	pkt.WriteInt(2 + packet.Length())
 	if packet.Client == Shockwave {
-		B64(packet.Header.Value).Compose(pkt, &pkt.Pos)
+		B64(packet.Header.Value).Compose(packet.Writer())
 	} else {
 		pkt.WriteShort(int16(packet.Header.Value))
 	}

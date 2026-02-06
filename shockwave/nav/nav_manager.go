@@ -22,7 +22,7 @@ func (mgr *Manager) Navigate(nodeId int) *Node {
 	mgr.ix.Send(out.NAVIGATE, false /* hide full */, nodeId, 1 /* depth */)
 	if pkt := mgr.ix.Recv(in.NAVNODEINFO).If(nodeIdEq(nodeId)).TimeoutSec(10).Block().Wait(); pkt != nil {
 		var navNodeInfo NodeInfo
-		navNodeInfo.Parse(pkt, &pkt.Pos)
+		pkt.Read(&navNodeInfo)
 		return &navNodeInfo.Root
 	} else {
 		return nil
@@ -32,7 +32,7 @@ func (mgr *Manager) Navigate(nodeId int) *Node {
 func (mgr *Manager) Search(query string) (rooms Rooms, ok bool) {
 	mgr.ix.Send(out.SRCHF, query)
 	if pkt := mgr.ix.Recv(in.FLAT_RESULTS_2).TimeoutSec(10).Block().Wait(); pkt != nil {
-		rooms.Parse(pkt, &pkt.Pos)
+		pkt.Read(&rooms)
 		ok = true
 	}
 	return
@@ -41,7 +41,7 @@ func (mgr *Manager) Search(query string) (rooms Rooms, ok bool) {
 func (mgr *Manager) GetOwnRooms() (rooms Rooms, ok bool) {
 	mgr.ix.Send(out.SUSERF)
 	if pkt := mgr.ix.Recv(in.FLAT_RESULTS).TimeoutSec(10).Block().Wait(); pkt != nil {
-		rooms.Parse(pkt, &pkt.Pos)
+		pkt.Read(&rooms)
 		ok = true
 	}
 	return
@@ -51,7 +51,7 @@ func (mgr *Manager) GetFavouriteRooms() (rooms Rooms, ok bool) {
 	mgr.ix.Send(out.GETFVRF, false)
 	if pkt := mgr.ix.Recv(in.FAVOURITEROOMRESULTS).TimeoutSec(10).Block().Wait(); pkt != nil {
 		var nodeInfo NodeInfo
-		nodeInfo.Parse(pkt, &pkt.Pos)
+		pkt.Read(&nodeInfo)
 		nodeInfo.Root.Traverse(func(node *Node) bool {
 			if room, ok := node.Data.(*Room); ok {
 				rooms = append(rooms, *room)

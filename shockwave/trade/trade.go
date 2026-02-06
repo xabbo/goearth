@@ -45,29 +45,29 @@ type Item struct {
 	PosterName string
 }
 
-func (item *Item) Parse(p *g.Packet, pos *int) {
+func (item *Item) Parse(r g.PacketReader) {
 	*item = Item{}
-	item.ItemId = p.ReadIntPtr(pos)
-	item.Type = p.ReadStringPtr(pos)
-	item.Id = p.ReadIntPtr(pos)
-	item.ClassId = p.ReadIntPtr(pos)
-	item.Class = p.ReadStringPtr(pos)
+	item.ItemId = r.ReadInt()
+	item.Type = r.ReadString()
+	item.Id = r.ReadInt()
+	item.ClassId = r.ReadInt()
+	item.Class = r.ReadString()
 	if item.Type == "s" {
-		item.Colors = p.ReadStringPtr(pos)
-		item.DimX = p.ReadIntPtr(pos)
-		item.DimY = p.ReadIntPtr(pos)
+		item.Colors = r.ReadString()
+		item.DimX = r.ReadInt()
+		item.DimY = r.ReadInt()
 	} else {
 		item.DimX = 1
 		item.DimY = 1
 	}
-	item.Category = p.ReadStringPtr(pos)
-	item.Groupable = p.ReadIntPtr(pos)
-	item.Data = p.ReadStringPtr(pos)
-	item.Day = p.ReadIntPtr(pos)
-	item.Month = p.ReadIntPtr(pos)
-	item.Year = p.ReadIntPtr(pos)
+	item.Category = r.ReadString()
+	item.Groupable = r.ReadInt()
+	item.Data = r.ReadString()
+	item.Day = r.ReadInt()
+	item.Month = r.ReadInt()
+	item.Year = r.ReadInt()
 	if item.Type == "s" {
-		item.SongId = p.ReadIntPtr(pos)
+		item.SongId = r.ReadInt()
 		item.SongName = "furni_" + item.Class + "_name"
 		item.SongDesc = "furni_" + item.Class + "_desc"
 	} else {

@@ -42,15 +42,15 @@ func (obj Object) String() string {
 	return obj.Class + "(" + strconv.Itoa(obj.Id) + ")"
 }
 
-func (obj *Object) Parse(p *g.Packet, pos *int) {
-	strId := p.ReadStringPtr(pos)
+func (obj *Object) Parse(r g.PacketReader) {
+	strId := r.ReadString()
 	id, err := strconv.Atoi(strId)
 	if err != nil {
 		panic(fmt.Errorf("invalid object ID: %q", strId))
 	}
 
 	*obj = Object{Id: id}
-	p.ReadPtr(pos, &obj.Class,
+	r.Read(&obj.Class,
 		&obj.X, &obj.Y, &obj.Width, &obj.Height,
 		&obj.Direction, &obj.Z,
 		&obj.Colors, &obj.RuntimeData,
@@ -70,16 +70,16 @@ func (item Item) String() string {
 	return item.Class + "(" + strconv.Itoa(item.Id) + ")"
 }
 
-func (item *Item) Parse(p *g.Packet, pos *int) {
-	item.ParseString(p.ReadStringPtr(pos))
+func (item *Item) Parse(r g.PacketReader) {
+	item.ParseString(r.ReadString())
 }
 
 type Items []Item
 
-func (items *Items) Parse(p *g.Packet, pos *int) {
+func (items *Items) Parse(r g.PacketReader) {
 	*items = []Item{}
-	for p.Pos < p.Length() {
-		line := strings.TrimSuffix(p.ReadStringPtr(pos), "\r")
+	for r.Available() > 0 {
+		line := strings.TrimSuffix(r.ReadString(), "\r")
 		var item Item
 		item.ParseString(line)
 		*items = append(*items, item)
@@ -114,13 +114,13 @@ type SlideObjectBundle struct {
 	Entity        SlideObject
 }
 
-func (bundle *SlideObjectBundle) Parse(p *g.Packet, pos *int) {
+func (bundle *SlideObjectBundle) Parse(r g.PacketReader) {
 	*bundle = SlideObjectBundle{}
-	p.ReadPtr(pos, &bundle.From, &bundle.To, &bundle.Objects, &bundle.RollerId)
-	if p.Pos < p.Length() {
-		p.ReadPtr(pos, &bundle.SlideMoveType)
+	r.Read(&bundle.From, &bundle.To, &bundle.Objects, &bundle.RollerId)
+	if r.Available() > 0 {
+		r.Read(&bundle.SlideMoveType)
 		if bundle.SlideMoveType == SlideMoveTypeMove || bundle.SlideMoveType == SlideMoveTypeSlide {
-			p.ReadPtr(pos, &bundle.Entity)
+			r.Read(&bundle.Entity)
 		}
 	}
 }
@@ -138,8 +138,8 @@ const (
 	SlideMoveTypeSlide
 )
 
-func (slideType *SlideMoveType) Parse(p *g.Packet, pos *int) {
-	*slideType = SlideMoveType(p.ReadIntPtr(pos))
+func (slideType *SlideMoveType) Parse(r g.PacketReader) {
+	*slideType = SlideMoveType(r.ReadInt())
 }
 
 type EntityType int
@@ -166,12 +166,12 @@ func (entityType EntityType) String() string {
 	}
 }
 
-func (entityType *EntityType) Parse(p *g.Packet, pos *int) {
-	*entityType = EntityType(p.ReadIntPtr(pos))
+func (entityType *EntityType) Parse(r g.PacketReader) {
+	*entityType = EntityType(r.ReadInt())
 }
 
-func (entityType EntityType) Compose(p *g.Packet, pos *int) {
-	p.WriteIntPtr(pos, int(entityType))
+func (entityType EntityType) Compose(w g.PacketWriter) {
+	w.WriteInt(int(entityType))
 }
 
 // Point represents 2-dimensional coordinates in a room.
@@ -228,13 +228,13 @@ func (ent Entity) String() string {
 	return ent.Name
 }
 
-func (ent *Entity) Parse(p *g.Packet, pos *int) {
+func (ent *Entity) Parse(r g.PacketReader) {
 	*ent = Entity{}
-	p.ReadPtr(pos, &ent.EntityBase)
+	r.Read(&ent.EntityBase)
 }
 
-func (ent *Entity) Compose(p *g.Packet, pos *int) {
-	p.WritePtr(pos, ent.EntityBase)
+func (ent *Entity) Compose(w g.PacketWriter) {
+	w.Write(ent.EntityBase)
 }
 
 // EntityStatus represents a status update of an entity in a room.

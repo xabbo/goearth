@@ -29,7 +29,7 @@ func TestNavNodeInfo(t *testing.T) {
 			}
 
 			var navNodeInfo NodeInfo
-			navNodeInfo.Parse(p, &p.Pos)
+			p.Read(&navNodeInfo)
 
 			if p.Pos < len(p.Data) {
 				t.Fatal("parser failed to read entire packet")
@@ -59,7 +59,7 @@ func TestFlatResults(t *testing.T) {
 			}
 
 			var results Rooms
-			results.Parse(p, &p.Pos)
+			p.Read(&results)
 
 			if p.Pos < len(p.Data) {
 				t.Fatalf("parser failed to read entire packet")

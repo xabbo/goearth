@@ -190,13 +190,11 @@ type Tile struct {
     Z    float32 
 }
 
-func (v *Tile) Parse(p *g.Packet, pos *int) {
+func (v *Tile) Parse(r g.PacketReader) {
     // perform custom parsing logic here
-    // make sure to use the Read*Ptr variants here
-    // to ensure the provided position is advanced properly
-    x := p.ReadIntPtr(pos)
-    y := p.ReadIntPtr(pos)
-    zStr := p.ReadStringPtr(pos)
+    x := r.ReadInt()
+    y := r.ReadInt()
+    zStr := r.ReadString()
     z, err := strconv.ParseFloat(zStr, 32)
     if err != nil {
         panic(err)
@@ -247,13 +245,11 @@ type Tile struct {
     Z    float32 
 }
 
-func (v Tile) Compose(p *g.Packet, pos *int) {
+func (v Tile) Compose(w PacketWriter) {
     // perform custom composing logic here
-    // make sure to use the Write*Ptr variants here
-    // to ensure the provided position is advanced properly
-    p.WriteIntPtr(pos, v.X)
-    p.WriteIntPtr(pos, v.Y)
-    p.WriteStringPtr(pos, strconv.FormatFloat(v.Z, 'f', -1, 32))
+    w.WriteInt(v.X)
+    w.WriteInt(v.Y)
+    w.WriteString(strconv.FormatFloat(v.Z, 'f', -1, 32))
 }
 ```
 

@@ -21,8 +21,8 @@ type Client struct {
 	Type       ClientType
 }
 
-func (t *ClientType) Parse(p *Packet, pos *int) {
-	*t = ClientType(p.ReadStringPtr(pos))
+func (t *ClientType) Parse(r PacketReader) {
+	*t = ClientType(r.ReadString())
 }
 
 func (t ClientType) String() string {
